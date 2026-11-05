@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Stitch Tally</title>
+<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg">
+<meta name="theme-color" content="#6d4c8f">
+<style>
+:root{--bg:#faf7fc;--card:#fff;--ink:#241c2c;--mut:#7a6d86;--pri:#6d4c8f;--acc:#e0568a;--line:#e6dfee}
+@media(prefers-color-scheme:dark){:root{--bg:#161219;--card:#221c28;--ink:#f1ebf6;--mut:#a698b3;--pri:#a88bcb;--acc:#ff7fa9;--line:#362d3f}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:16px system-ui,sans-serif;padding-top:env(safe-area-inset-top);display:flex;flex-direction:column;overflow:hidden}
+button{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;cursor:pointer}
+button.p{background:var(--pri);color:#fff;border:0}
+header{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line)}
+header h1{font-size:18px;margin:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hide{display:none!important}
+#lib{flex:1;overflow:auto;padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
+.card .t{flex:1;min-width:0}.card b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card small{color:var(--mut)}
+.big{font-size:28px;font-weight:700;color:var(--pri)}
+.empty{text-align:center;color:var(--mut);padding:40px 16px}
+#proj{flex:1;display:flex;flex-direction:column;min-height:0}
+#pdfwrap{flex:1;overflow:auto;position:relative;background:#8884;touch-action:pan-x pan-y pinch-zoom}
+#stage{position:relative;display:inline-block}
+#band{position:absolute;left:0;right:0;height:30px;background:#ffd60a55;border-top:2px solid #e0a800;border-bottom:2px solid #e0a800;pointer-events:none}
+#handle{position:absolute;right:0;top:-2px;height:34px;width:48px;background:var(--acc);border-radius:10px 0 0 10px;pointer-events:auto;touch-action:none;color:#fff;display:grid;place-items:center}
+#notes{padding:10px;border-top:1px solid var(--line);background:var(--card)}
+#notes textarea{width:100%;height:90px;font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px}
+#dock{background:var(--card);border-top:1px solid var(--line);padding:8px 10px calc(8px + env(safe-area-inset-bottom))}
+#chips{display:flex;gap:6px;overflow:auto;margin-bottom:6px}
+.chip{white-space:nowrap;padding:6px 12px;border-radius:99px;font-size:14px}
+.chip.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+#ctr{display:flex;align-items:center;gap:10px}
+#ctr .mid{flex:1;text-align:center}
+#val{font-size:52px;font-weight:800;line-height:1}
+#cn{color:var(--mut);font-size:13px}
+#minus{width:64px;height:64px;font-size:28px}
+#plus{width:min(46vw,200px);height:84px;font-size:40px;border-radius:20px}
+</style></head><body>
+
+<header id="hl"><h1>🧶 Stitch Tally</h1>
+<button id="add" class="p">+ Pattern</button><button id="bk">⋯</button></header>
+<div id="lib"></div>
+<input type="file" id="f" accept="application/pdf" hidden><input type="file" id="rf" accept=".json" hidden>
+
+<div id="proj" class="hide">
+<header><button id="back">←</button><h1 id="pt"></h1>
+<button id="pm">–</button><span id="pg" style="font-size:13px;color:var(--mut)"></span><button id="pp">+</button></header>
+<div id="pdfwrap"><div id="stage"><canvas id="cv"></canvas>
+<div id="band"><div id="handle">⇅</div></div></div></div>
+<div id="notes" class="hide"><textarea id="nt" placeholder="Notes: needle size, mods, reminders…"></textarea>
+<small id="tm" style="color:var(--mut)"></small></div>
+<div id="dock"><div id="chips"></div>
+<div id="ctr"><button id="minus">−</button><div class="mid"><div id="val">0</div><div id="cn"></div></div><button id="plus" class="p">+</button></div>
+<div style="display:flex;gap:6px;margin-top:8px;justify-content:space-between">
+<button id="undo">↶ Undo</button><button id="zm">🔍−</button><button id="zp">🔍+</button><button id="nb">📝</button><button id="cfg">⚙</button></div></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const $=s=>document.querySelector(s);
+const dbp=new Promise((res,rej)=>{const r=indexedDB.open('stitchtally',1);r.onupgradeneeded=()=>r.result.createObjectStore('p',{keyPath:'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+const tx=async(m,f)=>{const d=await dbp;return new Promise((res,rej)=>{const t=d.transaction('p',m);const o=f(t.objectStore('p'));t.oncomplete=()=>res(o.result);t.onerror=()=>rej(t.error)})};
+const getAll=()=>tx('readonly',s=>s.getAll()),put=p=>tx('readwrite',s=>s.put(p)),del=id=>tx('readwrite',s=>s.delete(id));
+let P=null,pdf=null,page=1,zoom=1,ci=0,hist=[],task=null,saveT=null,wl=null;
+const buzz=n=>navigator.vibrate&&navigator.vibrate(n);
+const save=()=>{clearTimeout(saveT);saveT=setTimeout(()=>{P.updated=Date.now();put(P)},400)};
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=s=>Math.floor(s/3600)+'h '+Math.floor(s%3600/60)+'m';
+
+async function lib(){
+ const ps=(await getAll()).sort((a,b)=>b.updated-a.updated);
+ $('#lib').innerHTML=ps.length?ps.map(p=>`<div class="card" data-id="${p.id}"><div class="t"><b>${esc(p.name)}</b><small>${p.counters[0].name}: ${p.counters[0].value} · ${fmt(p.seconds||0)} · p.${p.page}</small></div><div class="big">${p.counters[0].value}</div><button data-del="${p.id}">🗑</button></div>`).join(''):
+ '<div class="empty">No patterns yet.<br>Download your pattern PDF from your Ravelry library, then tap <b>+ Pattern</b> and pick it.</div>';
+}
+$('#lib').onclick=async e=>{
+ const d=e.target.closest('[data-del]');
+ if(d){if(confirm('Delete this project and its PDF?')){await del(d.dataset.del);lib()}return}
+ const c=e.target.closest('.card');if(c)open((await getAll()).find(p=>p.id===c.dataset.id));
+};
+$('#add').onclick=()=>$('#f').click();
+$('#f').onchange=async e=>{
+ const f=e.target.files[0];if(!f)return;
+ const p={id:crypto.randomUUID(),name:f.name.replace(/\.pdf$/i,''),created:Date.now(),updated:Date.now(),pdf:f,page:1,zoom:1,seconds:0,notes:'',lines:{},
+  counters:[{id:1,name:'Rows',value:0,repeat:0,laps:0}]};
+ await put(p);e.target.value='';open(p);
+};
+async function open(p){
+ P=p;page=p.page||1;zoom=p.zoom||1;ci=0;hist=[];
+ $('#hl').classList.add('hide');$('#lib').classList.add('hide');$('#proj').classList.remove('hide');
+ $('#pt').textContent=p.name;$('#nt').value=p.notes||'';
+ try{pdf=await pdfjsLib.getDocument({data:await p.pdf.arrayBuffer()}).promise}catch(e){alert('Could not open that PDF.');return close()}
+ page=Math.min(page,pdf.numPages);ui();render();
+ try{wl=await navigator.wakeLock?.request('screen')}catch{}
+}
+async function close(){
+ clearTimeout(saveT);if(P){P.updated=Date.now();await put(P)}
+ P=null;pdf=null;wl?.release?.();
+ $('#proj').classList.add('hide');$('#hl').classList.remove('hide');$('#lib').classList.remove('hide');lib();
+}
+$('#back').onclick=close;
+async function render(){
+ if(!pdf)return;task?.cancel();
+ const pg=await pdf.getPage(page),w=$('#pdfwrap').clientWidth,b=pg.getViewport({scale:1});
+ const s=w/b.width*zoom,r=devicePixelRatio||1,vp=pg.getViewport({scale:s*r}),cv=$('#cv');
+ cv.width=vp.width;cv.height=vp.height;cv.style.width=vp.width/r+'px';cv.style.height=vp.height/r+'px';
+ $('#pg').textContent=page+'/'+pdf.numPages;
+ $('#band').style.top=(P.lines[page]??40)+'px';
+ task=pg.render({canvasContext:cv.getContext('2d'),viewport:vp});
+ try{await task.promise}catch{}
+}
+const go=n=>{if(n<1||n>pdf.numPages)return;page=n;P.page=n;save();render();$('#pdfwrap').scrollTop=0};
+$('#pm').onclick=()=>go(page-1);$('#pp').onclick=()=>go(page+1);
+$('#zm').onclick=()=>{zoom=Math.max(.5,zoom-.25);P.zoom=zoom;save();render()};
+$('#zp').onclick=()=>{zoom=Math.min(4,zoom+.25);P.zoom=zoom;save();render()};
+// movable row-highlight band
+let drag=false;const h=$('#handle');
+h.onpointerdown=e=>{drag=true;h.setPointerCapture(e.pointerId)};
+h.onpointermove=e=>{if(!drag)return;const y=e.clientY-$('#stage').getBoundingClientRect().top-15;P.lines[page]=Math.max(0,y);$('#band').style.top=P.lines[page]+'px'};
+h.onpointerup=()=>{drag=false;save()};
+// counters
+const C=()=>P.counters[ci];
+function ui(){
+ $('#chips').innerHTML=P.counters.map((c,i)=>`<button class="chip ${i==ci?'on':''}" data-i="${i}">${esc(c.name)}</button>`).join('')+'<button class="chip" id="nc">+</button>';
+ const c=C();$('#val').textContent=c.value;
+ $('#cn').textContent=c.name+(c.repeat?` · repeat every ${c.repeat} · rounds: ${c.laps}`:'');
+ $('#tm').textContent='Time on this project: '+fmt(P.seconds||0);
+}
+$('#chips').onclick=e=>{
+ if(e.target.id==='nc'){const n=prompt('New counter name (e.g. Repeats, Increases)');if(n){P.counters.push({id:Date.now(),name:n,value:0,repeat:0,laps:0});ci=P.counters.length-1;save();ui()}return}
+ const b=e.target.closest('[data-i]');if(b){ci=+b.dataset.i;ui()}
+};
+const snap=()=>{hist.push(JSON.stringify(P.counters));if(hist.length>50)hist.shift()};
+$('#plus').onclick=()=>{snap();const c=C();c.value++;if(c.repeat&&c.value>c.repeat){c.value=1;c.laps++;buzz([30,40,30])}else buzz(15);save();ui()};
+$('#minus').onclick=()=>{snap();const c=C();if(c.value>0)c.value--;if(c.value===0&&c.repeat&&c.laps>0){c.laps--;c.value=c.repeat}buzz(10);save();ui()};
+$('#undo').onclick=()=>{if(hist.length){P.counters=JSON.parse(hist.pop());ci=Math.min(ci,P.counters.length-1);save();ui()}};
+$('#cfg').onclick=()=>{
+ const c=C(),a=prompt('Counter options — type: rename, repeat, reset, delete','rename');
+ if(a==='rename'){const n=prompt('Name',c.name);if(n)c.name=n}
+ else if(a==='repeat'){const n=prompt('Repeat every N rows (0 = off)',c.repeat);if(n!==null)c.repeat=Math.max(0,+n||0)}
+ else if(a==='reset'){if(confirm('Reset to 0?')){snap();c.value=0;c.laps=0}}
+ else if(a==='delete'){if(P.counters.length>1&&confirm('Delete counter?')){P.counters.splice(ci,1);ci=0}}
+ save();ui();
+};
+$('#nb').onclick=()=>$('#notes').classList.toggle('hide');
+$('#nt').oninput=e=>{P.notes=e.target.value;save()};
+setInterval(()=>{if(P&&!document.hidden){P.seconds=(P.seconds||0)+1;if(P.seconds%30===0)save()}},1000);
+document.addEventListener('visibilitychange',async()=>{if(P&&!document.hidden){try{wl=await navigator.wakeLock?.request('screen')}catch{}}});
+// backup / restore
+$('#bk').onclick=async()=>{
+ if(confirm('OK = export backup file. Cancel = restore from a backup.')){
+  const ps=await getAll(),out=[];
+  for(const p of ps){const d=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(p.pdf)});out.push({...p,pdf:d})}
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(out)],{type:'application/json'}));a.download='stitch-tally-backup.json';a.click();
+ }else $('#rf').click();
+};
+$('#rf').onchange=async e=>{
+ const f=e.target.files[0];if(!f)return;
+ for(const p of JSON.parse(await f.text()))await put({...p,pdf:await (await fetch(p.pdf)).blob()});
+ e.target.value='';lib();
+};
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+lib();
+</script></body></html>
