@@ -117,31 +117,31 @@ async function lib(){
 $('#lib').onclick=async e=>{
  const d=e.target.closest('[data-del]');
  if(d){if(confirm('Delete this project and its PDF?')){const id=d.dataset.del;await del(id);if(tok())api('p/'+id,{method:'PUT',body:JSON.stringify({id,deleted:true,updated:Date.now()})}).catch(()=>{});lib()}return}
- const c=e.target.closest('.card');if(c)open(await getOne(c.dataset.id));
+ const c=e.target.closest('.card');if(c)openProject(await getOne(c.dataset.id));
 };
 $('#add').onclick=()=>$('#f').click();
 $('#f').onchange=async e=>{
  const f=e.target.files[0];if(!f)return;
  const p={id:uid()+uid(),name:f.name.replace(/\.pdf$/i,''),created:Date.now(),updated:Date.now(),pdf:f,page:1,zoom:1,seconds:0,notes:'',guides:[],anns:[],
   counters:[{id:1,name:'Rows',value:0,repeat:0,laps:0}]};
- await put(p);e.target.value='';open(p);syncSoon();
+ await put(p);e.target.value='';openProject(p);syncSoon();
 };
 
 // ---------- project open/close ----------
-async function open(p){
+async function openProject(p){
  P=p;P.guides||=[];P.anns||=[];page=p.page||1;zoom=p.zoom||1;ci=0;hist=[];setTool('move');
  $('#hl').classList.add('hide');$('#lib').classList.add('hide');$('#proj').classList.remove('hide');
  $('#pt').textContent=p.name;$('#nt').value=p.notes||'';
- try{pdf=await pdfjsLib.getDocument({data:await p.pdf.arrayBuffer()}).promise}catch(e){alert('Could not open that PDF.');return close()}
+ try{pdf=await pdfjsLib.getDocument({data:await p.pdf.arrayBuffer()}).promise}catch(e){alert('Could not open that PDF.');return closeProject()}
  page=Math.min(page,pdf.numPages);ui();render();
  try{wl=await navigator.wakeLock?.request('screen')}catch{}
 }
-async function close(){
+async function closeProject(){
  if(P){await flush();await put(P)}
  P=null;pdf=null;wl?.release?.();shut();
  $('#proj').classList.add('hide');$('#hl').classList.remove('hide');$('#lib').classList.remove('hide');lib();sync();
 }
-$('#back').onclick=close;
+$('#back').onclick=closeProject;
 
 // ---------- rendering ----------
 async function render(){
@@ -282,9 +282,9 @@ async function sync(){
  try{
   const r=await api('list');if(r.status===401){localStorage.removeItem('st_session');syncing=false;sy('☁ signed out');return}if(!r.ok)throw new Error('list '+r.status);
   const rem=new Map((await r.json()).map(x=>[x.id,x])),loc=await getAll(),lm=new Map(loc.map(p=>[p.id,p]));
-  for(const [id,x] of rem){const l=lm.get(id),open=P&&P.id===id;
-   if(x.deleted){if(l&&!open&&l.updated<=x.updated)await del(id);continue}
-   if(open)continue;
+  for(const [id,x] of rem){const l=lm.get(id),isOpen=P&&P.id===id;
+   if(x.deleted){if(l&&!isOpen&&l.updated<=x.updated)await del(id);continue}
+   if(isOpen)continue;
    if(!l||l.updated<x.updated){
     const j=await(await api('p/'+id)).json();let b=l?.pdf;
     if(!b){const pr=await api('pdf/'+id);if(!pr.ok)continue;b=new Blob([await pr.arrayBuffer()],{type:'application/pdf'})}
