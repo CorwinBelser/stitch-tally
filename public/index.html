@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Stitch Tally</title>
+<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg">
+<meta name="theme-color" content="#6d4c8f">
+<style>
+:root{--bg:#faf7fc;--card:#fff;--ink:#241c2c;--mut:#7a6d86;--pri:#6d4c8f;--acc:#e0568a;--line:#e6dfee}
+@media(prefers-color-scheme:dark){:root{--bg:#161219;--card:#221c28;--ink:#f1ebf6;--mut:#a698b3;--pri:#a88bcb;--acc:#ff7fa9;--line:#362d3f}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:16px system-ui,sans-serif;padding-top:env(safe-area-inset-top);display:flex;flex-direction:column;overflow:hidden}
+button{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;cursor:pointer}
+button.p{background:var(--pri);color:#fff;border:0}
+button.on{outline:2px solid var(--pri)}
+header{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line)}
+header h1{font-size:18px;margin:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#sy{font-size:12px;color:var(--mut)}
+.hide{display:none!important}
+#lib{flex:1;overflow:auto;padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;cursor:pointer}
+.card .t{flex:1;min-width:0}.card b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card small,small{color:var(--mut)}
+.big{font-size:28px;font-weight:700;color:var(--pri)}
+.empty{text-align:center;color:var(--mut);padding:40px 16px}
+#proj{flex:1;display:flex;flex-direction:column;min-height:0}
+#tools{display:flex;gap:6px;padding:6px 10px;overflow:auto;border-bottom:1px solid var(--line);align-items:center}
+#tools button{padding:6px 12px;white-space:nowrap}
+#cc{width:34px;height:34px;border-radius:50%;padding:0}
+#pdfwrap{flex:1;overflow:auto;position:relative;background:#8884;text-align:center}
+#stage{position:relative;display:inline-block;vertical-align:top}
+#cv{display:block}
+#ann,#draw{position:absolute;inset:0}
+#ann{pointer-events:none}
+#draw{display:none;touch-action:none;cursor:crosshair;z-index:3}
+body.tool #draw{display:block}
+.a{position:absolute;pointer-events:auto;cursor:pointer}
+.hl{mix-blend-mode:multiply;border-radius:2px}
+.pin{width:30px;height:30px;border-radius:50%;transform:translate(-50%,-50%);display:grid;place-items:center;border:2px solid #fff;box-shadow:0 1px 4px #0006;font-size:15px}
+.done{opacity:.35}
+.bd{position:absolute;right:-4px;top:-15px;font-size:11px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:0 4px}
+.g{position:absolute;pointer-events:none;border:0 solid;z-index:1}
+.gh{position:absolute;pointer-events:auto;touch-action:none;background:var(--acc);color:#fff;display:grid;place-items:center;border-radius:10px;z-index:2;cursor:grab}
+.gh.h{top:50%;transform:translateY(-50%);width:52px;height:36px}
+.gh.v{left:50%;transform:translateX(-50%);width:36px;height:48px}
+#notes{padding:10px;border-top:1px solid var(--line);background:var(--card)}
+#notes textarea,.sb textarea{width:100%;height:90px;font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px}
+#dock{background:var(--card);border-top:1px solid var(--line);padding:8px 10px calc(8px + env(safe-area-inset-bottom))}
+#chips{display:flex;gap:6px;overflow:auto;margin-bottom:6px}
+.chip{white-space:nowrap;padding:6px 12px;border-radius:99px;font-size:14px}
+.chip.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+#ctr{display:flex;align-items:center;gap:10px}
+#ctr .mid{flex:1;text-align:center}
+#val{font-size:52px;font-weight:800;line-height:1}
+#cn{color:var(--mut);font-size:13px}
+#minus{width:64px;height:64px;font-size:28px}
+#plus{width:min(46vw,200px);height:84px;font-size:40px;border-radius:20px}
+#sheet{position:fixed;inset:0;background:#0006;display:flex;align-items:flex-end;z-index:9}
+.sb{background:var(--card);width:100%;max-width:560px;margin:0 auto;max-height:78vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
+.sb h3{margin:0 0 8px}.row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.sw i{display:inline-block;width:34px;height:34px;border-radius:50%;margin:4px;border:2px solid var(--line);cursor:pointer}
+.cm{position:relative;padding:8px 34px 8px 0;border-bottom:1px solid var(--line)}
+.cm button{position:absolute;right:0;top:6px;padding:2px 8px}
+code{display:block;padding:10px;background:var(--bg);border-radius:10px;user-select:all;word-break:break-all}
+</style></head><body>
+
+<header id="hl"><h1>🧶 Stitch Tally</h1><span id="sy"></span>
+<button id="add" class="p">+ Pattern</button><button id="bk" title="Sync & backup">⋯</button></header>
+<div id="lib"></div>
+<input type="file" id="f" accept="application/pdf" hidden><input type="file" id="rf" accept=".json" hidden>
+
+<div id="proj" class="hide">
+<header><button id="back">←</button><h1 id="pt"></h1>
+<button id="pm">–</button><span id="pg" style="font-size:13px;color:var(--mut)"></span><button id="pp">+</button></header>
+<div id="tools">
+<button data-t="move" class="on" title="Scroll / move">✋</button><button data-t="hl" title="Highlight an area (drag)">🖍</button><button data-t="pin" title="Drop a note (tap)">📍</button>
+<button id="cc" title="Color"></button>
+<button id="gh" title="Add row guide">━ Row</button><button id="gv" title="Add column guide">┃ Col</button><button id="lst" title="All notes">💬</button></div>
+<div id="pdfwrap"><div id="stage"><canvas id="cv"></canvas><div id="ann"></div><div id="draw"></div></div></div>
+<div id="notes" class="hide"><textarea id="nt" placeholder="Project notes: needle size, mods, reminders…"></textarea>
+<small id="tm"></small></div>
+<div id="dock"><div id="chips"></div>
+<div id="ctr"><button id="minus">−</button><div class="mid"><div id="val">0</div><div id="cn"></div></div><button id="plus" class="p">+</button></div>
+<div style="display:flex;gap:6px;margin-top:8px;justify-content:space-between">
+<button id="undo">↶ Undo</button><button id="zm">🔍−</button><button id="zp">🔍+</button><button id="nb">📝</button><button id="cfg">⚙</button></div></div>
+</div>
+<div id="sheet" class="hide"><div class="sb"></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const $=s=>document.querySelector(s),COLS=['#ffd60a','#ff5fa2','#4cd964','#4fc3f7','#ff9f43'];
+const dbp=new Promise((res,rej)=>{const r=indexedDB.open('stitchtally',1);r.onupgradeneeded=()=>r.result.createObjectStore('p',{keyPath:'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+const tx=async(m,f)=>{const d=await dbp;return new Promise((res,rej)=>{const t=d.transaction('p',m);const o=f(t.objectStore('p'));t.oncomplete=()=>res(o.result);t.onerror=()=>rej(t.error)})};
+const getAll=()=>tx('readonly',s=>s.getAll()),getOne=id=>tx('readonly',s=>s.get(id)),put=p=>tx('readwrite',s=>s.put(p)),del=id=>tx('readwrite',s=>s.delete(id));
+let P=null,pdf=null,page=1,zoom=1,ci=0,hist=[],task=null,saveT=null,wl=null,tool='move',col=COLS[0],W=1,H=1,syncT=null,syncing=false,dirty=false,lw=0,rt;
+const buzz=n=>navigator.vibrate&&navigator.vibrate(n),uid=()=>crypto.randomUUID().slice(0,8);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=s=>Math.floor(s/3600)+'h '+Math.floor(s%3600/60)+'m',clamp=v=>Math.min(.98,Math.max(.02,v));
+const flush=async()=>{if(!P||!dirty)return;dirty=false;clearTimeout(saveT);P.updated=Date.now();await put(P)};
+const save=()=>{dirty=true;clearTimeout(saveT);saveT=setTimeout(async()=>{await flush();syncSoon()},400)};
+const syncSoon=()=>{clearTimeout(syncT);syncT=setTimeout(sync,20000)};
+
+// ---------- sheet helper ----------
+function sheet(h,bind){const s=$('#sheet');s.querySelector('.sb').innerHTML=h;s.classList.remove('hide');bind&&bind(s)}
+const shut=()=>$('#sheet').classList.add('hide');
+$('#sheet').onclick=e=>{if(e.target.id==='sheet')shut()};
+const swatches=()=>'<div class="sw">'+COLS.map(c=>`<i data-c="${c}" style="background:${c}"></i>`).join('')+'</div>';
+
+// ---------- library ----------
+async function lib(){
+ const ps=(await getAll()).sort((a,b)=>b.updated-a.updated);
+ $('#lib').innerHTML=ps.length?ps.map(p=>`<div class="card" data-id="${p.id}"><div class="t"><b>${esc(p.name)}</b><small>${esc(p.counters[0].name)}: ${p.counters[0].value} · ${fmt(p.seconds||0)} · p.${p.page}</small></div><div class="big">${p.counters[0].value}</div><button data-del="${p.id}">🗑</button></div>`).join(''):
+ '<div class="empty">No patterns yet.<br>Download your pattern PDF from your Ravelry library, then tap <b>+ Pattern</b> and pick it.</div>';
+}
+$('#lib').onclick=async e=>{
+ const d=e.target.closest('[data-del]');
+ if(d){if(confirm('Delete this project and its PDF?')){const id=d.dataset.del;await del(id);if(tok())api('p/'+id,{method:'PUT',body:JSON.stringify({id,deleted:true,updated:Date.now()})}).catch(()=>{});lib()}return}
+ const c=e.target.closest('.card');if(c)open(await getOne(c.dataset.id));
+};
+$('#add').onclick=()=>$('#f').click();
+$('#f').onchange=async e=>{
+ const f=e.target.files[0];if(!f)return;
+ const p={id:uid()+uid(),name:f.name.replace(/\.pdf$/i,''),created:Date.now(),updated:Date.now(),pdf:f,page:1,zoom:1,seconds:0,notes:'',guides:[],anns:[],
+  counters:[{id:1,name:'Rows',value:0,repeat:0,laps:0}]};
+ await put(p);e.target.value='';open(p);syncSoon();
+};
+
+// ---------- project open/close ----------
+async function open(p){
+ P=p;P.guides||=[];P.anns||=[];page=p.page||1;zoom=p.zoom||1;ci=0;hist=[];setTool('move');
+ $('#hl').classList.add('hide');$('#lib').classList.add('hide');$('#proj').classList.remove('hide');
+ $('#pt').textContent=p.name;$('#nt').value=p.notes||'';
+ try{pdf=await pdfjsLib.getDocument({data:await p.pdf.arrayBuffer()}).promise}catch(e){alert('Could not open that PDF.');return close()}
+ page=Math.min(page,pdf.numPages);ui();render();
+ try{wl=await navigator.wakeLock?.request('screen')}catch{}
+}
+async function close(){
+ if(P){await flush();await put(P)}
+ P=null;pdf=null;wl?.release?.();shut();
+ $('#proj').classList.add('hide');$('#hl').classList.remove('hide');$('#lib').classList.remove('hide');lib();sync();
+}
+$('#back').onclick=close;
+
+// ---------- rendering ----------
+async function render(){
+ if(!pdf)return;task?.cancel();
+ const pg=await pdf.getPage(page),w=Math.min($('#pdfwrap').clientWidth,1000);lw=$('#pdfwrap').clientWidth;
+ const b=pg.getViewport({scale:1}),s=w/b.width*zoom,r=devicePixelRatio||1,vp=pg.getViewport({scale:s*r}),cv=$('#cv');
+ cv.width=vp.width;cv.height=vp.height;W=vp.width/r;H=vp.height/r;cv.style.width=W+'px';cv.style.height=H+'px';
+ $('#pg').textContent=page+'/'+pdf.numPages;ov();
+ task=pg.render({canvasContext:cv.getContext('2d'),viewport:vp});
+ try{await task.promise}catch{}
+}
+const go=n=>{if(n<1||n>pdf.numPages)return;page=n;P.page=n;save();render();$('#pdfwrap').scrollTop=0};
+$('#pm').onclick=()=>go(page-1);$('#pp').onclick=()=>go(page+1);
+$('#zm').onclick=()=>{zoom=Math.max(.5,zoom-.25);P.zoom=zoom;save();render()};
+$('#zp').onclick=()=>{zoom=Math.min(4,zoom+.25);P.zoom=zoom;save();render()};
+addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(pdf&&$('#pdfwrap').clientWidth!==lw)render()},200)});
+
+// ---------- tools ----------
+function setTool(t){tool=t;document.body.classList.toggle('tool',t!=='move');document.querySelectorAll('#tools [data-t]').forEach(b=>b.classList.toggle('on',b.dataset.t===t))}
+document.querySelectorAll('#tools [data-t]').forEach(b=>b.onclick=()=>setTool(b.dataset.t));
+$('#cc').style.background=col;
+$('#cc').onclick=()=>{col=COLS[(COLS.indexOf(col)+1)%COLS.length];$('#cc').style.background=col};
+
+// ---------- overlay: guides + annotations (coords stored as page fractions so they sync across screen sizes) ----------
+function ov(){
+ const a=$('#ann');a.innerHTML='';
+ for(const g of P.guides)if(g.all||g.page===page)a.append(gEl(g));
+ for(const n of P.anns)if(n.page===page)a.append(nEl(n));
+ ph();
+}
+function gPlace(d,g){const s=d.style;
+ if(g.o==='h'){s.left=0;s.right=0;s.top=(g.p-g.t/2)*H+'px';s.height=g.t*H+'px'}
+ else{s.top=0;s.bottom=0;s.left=(g.p-g.t/2)*W+'px';s.width=g.t*W+'px'}}
+function gEl(g){
+ const d=document.createElement('div');d.className='g';const h=g.o==='h';
+ d.style.background=g.c+'55';d.style.borderColor=g.c;d.style.borderWidth=h?'2px 0':'0 2px';gPlace(d,g);
+ const k=document.createElement('div');k.className='gh '+g.o;k.textContent=h?'⇅':'⇄';d.append(k);
+ let m=0,sx,sy;
+ k.onpointerdown=e=>{k.setPointerCapture(e.pointerId);m=0;sx=e.clientX;sy=e.clientY};
+ k.onpointermove=e=>{if(!k.hasPointerCapture(e.pointerId))return;if(Math.hypot(e.clientX-sx,e.clientY-sy)>5)m=1;if(!m)return;
+  const r=$('#stage').getBoundingClientRect();g.p=clamp(h?(e.clientY-r.top)/H:(e.clientX-r.left)/W);gPlace(d,g)};
+ k.onpointerup=()=>{if(m)save();else gSheet(g)};
+ return d;
+}
+function ph(){const w=$('#pdfwrap'),st=$('#stage');
+ document.querySelectorAll('.gh.h').forEach(h=>{h.style.left=Math.max(0,w.scrollLeft+w.clientWidth-st.offsetLeft-56)+'px'});
+ document.querySelectorAll('.gh.v').forEach(h=>{h.style.top=Math.max(0,w.scrollTop+w.clientHeight/2-st.offsetTop-24)+'px'})}
+$('#pdfwrap').onscroll=ph;
+function addG(o){const w=$('#pdfwrap');
+ P.guides.push({id:uid(),o,p:o==='h'?clamp((w.scrollTop+w.clientHeight/3)/H):.5,t:o==='h'?.03:.06,c:col,page,all:false});save();ov()}
+$('#gh').onclick=()=>addG('h');$('#gv').onclick=()=>addG('v');
+function gSheet(g){
+ sheet(`<h3>${g.o==='h'?'Row':'Column'} guide</h3><div class="row"><button id="t1">Thinner</button><button id="t2">Thicker</button></div>
+ <label><input type="checkbox" id="al" ${g.all?'checked':''}> Show on every page</label>${swatches()}<div class="row"><button id="dl">Delete guide</button></div>`,el=>{
+  el.querySelector('#t1').onclick=()=>{g.t=Math.max(.006,g.t/1.3);save();ov()};
+  el.querySelector('#t2').onclick=()=>{g.t=Math.min(.3,g.t*1.3);save();ov()};
+  el.querySelector('#al').onchange=e=>{g.all=e.target.checked;save();ov()};
+  el.querySelectorAll('[data-c]').forEach(i=>i.onclick=()=>{g.c=i.dataset.c;save();ov()});
+  el.querySelector('#dl').onclick=()=>{P.guides=P.guides.filter(x=>x!==g);save();ov();shut()};
+ });
+}
+function nEl(n){
+ const d=document.createElement('div');d.className='a '+n.k+(n.done?' done':'');const s=d.style;
+ s.left=n.x*W+'px';s.top=n.y*H+'px';
+ if(n.k==='hl'){s.width=n.w*W+'px';s.height=n.h*H+'px';s.background=n.c+'66';if(n.cm.length)d.innerHTML='<span class="bd">💬'+n.cm.length+'</span>'}
+ else{s.background=n.c;d.textContent='💬'}
+ d.onclick=()=>aSheet(n);return d;
+}
+function aSheet(n){
+ const th=n.cm.map((c,i)=>`<div class="cm"><small>${new Date(c.t).toLocaleString([],{dateStyle:'short',timeStyle:'short'})}</small><div>${esc(c.x)}</div><button data-d="${i}">✕</button></div>`).join('')||'<small>No comments yet.</small>';
+ sheet(`<h3>${n.k==='pin'?'📍 Note':'🖍 Highlight'} · page ${n.page}</h3>${th}<textarea id="ci" placeholder="Add a comment…" style="margin-top:10px"></textarea>
+ <div class="row"><button class="p" id="ca">Comment</button><button id="rs">${n.done?'Reopen':'Resolve'}</button><button id="dl">Delete</button></div>${swatches()}`,el=>{
+  const q=s=>el.querySelector(s);
+  q('#ca').onclick=()=>{const v=q('#ci').value.trim();if(!v)return;n.cm.push({t:Date.now(),x:v});save();ov();aSheet(n)};
+  el.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{n.cm.splice(+b.dataset.d,1);save();ov();aSheet(n)});
+  q('#rs').onclick=()=>{n.done=!n.done;save();ov();shut()};
+  q('#dl').onclick=()=>{P.anns=P.anns.filter(a=>a!==n);save();ov();shut()};
+  el.querySelectorAll('[data-c]').forEach(i=>i.onclick=()=>{n.c=i.dataset.c;save();ov();aSheet(n)});
+  if(n.k==='pin'&&!n.cm.length)q('#ci').focus();
+ });
+}
+$('#lst').onclick=()=>{
+ const a=[...P.anns].sort((x,y)=>x.page-y.page||x.y-y.y);
+ sheet('<h3>Notes & highlights</h3>'+(a.length?a.map(n=>`<div class="card" data-n="${n.id}"><div class="t"><b>${n.k==='pin'?'📍':'🖍'} Page ${n.page}${n.done?' ✓':''}</b><small>${esc(n.cm[0]?.x||'(no comment)')}</small></div></div>`).join(''):'<small>None yet. Use 🖍 to highlight an area or 📍 to drop a note.</small>'),
+ el=>el.querySelectorAll('[data-n]').forEach(c=>c.onclick=()=>{const n=P.anns.find(x=>x.id===c.dataset.n);shut();if(n.page!==page)go(n.page);aSheet(n)}));
+};
+// drawing layer (highlight drag / note tap)
+const dl=$('#draw');let ds=null,pv=null;
+dl.onpointerdown=e=>{const r=$('#stage').getBoundingClientRect();ds={x:e.clientX-r.left,y:e.clientY-r.top,r};dl.setPointerCapture(e.pointerId);
+ if(tool==='hl'){pv=document.createElement('div');pv.className='a hl';pv.style.background=col+'66';pv.style.pointerEvents='none';$('#ann').append(pv)}};
+dl.onpointermove=e=>{if(!ds||tool!=='hl')return;const x=e.clientX-ds.r.left,y=e.clientY-ds.r.top,s=pv.style;
+ s.left=Math.min(x,ds.x)+'px';s.top=Math.min(y,ds.y)+'px';s.width=Math.abs(x-ds.x)+'px';s.height=Math.abs(y-ds.y)+'px'};
+dl.onpointercancel=()=>{pv?.remove();pv=null;ds=null};
+dl.onpointerup=e=>{if(!ds)return;const x=e.clientX-ds.r.left,y=e.clientY-ds.r.top;
+ if(tool==='hl'){pv?.remove();pv=null;const w=Math.abs(x-ds.x),h=Math.abs(y-ds.y);
+  if(w>8&&h>4){P.anns.push({id:uid(),k:'hl',page,x:Math.min(x,ds.x)/W,y:Math.min(y,ds.y)/H,w:w/W,h:h/H,c:col,cm:[]});save();ov()}}
+ else if(tool==='pin'){const n={id:uid(),k:'pin',page,x:ds.x/W,y:ds.y/H,c:col,cm:[]};P.anns.push(n);save();setTool('move');ov();aSheet(n)}
+ ds=null};
+
+// ---------- counters ----------
+const C=()=>P.counters[ci];
+function ui(){
+ $('#chips').innerHTML=P.counters.map((c,i)=>`<button class="chip ${i==ci?'on':''}" data-i="${i}">${esc(c.name)}</button>`).join('')+'<button class="chip" id="nc">+</button>';
+ const c=C();$('#val').textContent=c.value;
+ $('#cn').textContent=c.name+(c.repeat?` · repeat every ${c.repeat} · rounds: ${c.laps}`:'');
+ $('#tm').textContent='Time on this project: '+fmt(P.seconds||0);
+}
+$('#chips').onclick=e=>{
+ if(e.target.id==='nc'){const n=prompt('New counter name (e.g. Repeats, Increases)');if(n){P.counters.push({id:Date.now(),name:n,value:0,repeat:0,laps:0});ci=P.counters.length-1;save();ui()}return}
+ const b=e.target.closest('[data-i]');if(b){ci=+b.dataset.i;ui()}
+};
+const snap=()=>{hist.push(JSON.stringify(P.counters));if(hist.length>50)hist.shift()};
+$('#plus').onclick=()=>{snap();const c=C();c.value++;if(c.repeat&&c.value>c.repeat){c.value=1;c.laps++;buzz([30,40,30])}else buzz(15);save();ui()};
+$('#minus').onclick=()=>{snap();const c=C();if(c.value>0)c.value--;if(c.value===0&&c.repeat&&c.laps>0){c.laps--;c.value=c.repeat}buzz(10);save();ui()};
+$('#undo').onclick=()=>{if(hist.length){P.counters=JSON.parse(hist.pop());ci=Math.min(ci,P.counters.length-1);save();ui()}};
+$('#cfg').onclick=()=>{
+ const c=C(),a=prompt('Counter options — type: rename, repeat, reset, delete','rename');
+ if(a==='rename'){const n=prompt('Name',c.name);if(n)c.name=n}
+ else if(a==='repeat'){const n=prompt('Repeat every N rows (0 = off)',c.repeat);if(n!==null)c.repeat=Math.max(0,+n||0)}
+ else if(a==='reset'){if(confirm('Reset to 0?')){snap();c.value=0;c.laps=0}}
+ else if(a==='delete'){if(P.counters.length>1&&confirm('Delete counter?')){P.counters.splice(ci,1);ci=0}}
+ save();ui();
+};
+$('#nb').onclick=()=>$('#notes').classList.toggle('hide');
+$('#nt').oninput=e=>{P.notes=e.target.value;save()};
+setInterval(()=>{if(P&&!document.hidden){P.seconds=(P.seconds||0)+1;if(P.seconds%30===0)put(P)}},1000);
+addEventListener('keydown',e=>{if(!P||/INPUT|TEXTAREA/.test(e.target.tagName))return;
+ if(e.key==='+'||e.key==='='||e.key==='ArrowUp'){e.preventDefault();$('#plus').click()}
+ else if(e.key==='-'||e.key==='ArrowDown'){e.preventDefault();$('#minus').click()}
+ else if(e.key==='ArrowRight')go(page+1);else if(e.key==='ArrowLeft')go(page-1)});
+
+// ---------- sync (free: Cloudflare Worker + KV) ----------
+const tok=()=>localStorage.st_session||'';
+const api=(p,o={})=>fetch('/api/'+p,{...o,headers:{authorization:'Bearer '+tok(),...(o.headers||{})}});
+const sy=t=>$('#sy').textContent=t;
+async function sync(){
+ if(!tok()||syncing||!navigator.onLine)return;syncing=true;sy('☁ syncing…');
+ try{
+  const r=await api('list');if(r.status===401){localStorage.removeItem('st_session');syncing=false;sy('☁ signed out');return}if(!r.ok)throw new Error('list '+r.status);
+  const rem=new Map((await r.json()).map(x=>[x.id,x])),loc=await getAll(),lm=new Map(loc.map(p=>[p.id,p]));
+  for(const [id,x] of rem){const l=lm.get(id),open=P&&P.id===id;
+   if(x.deleted){if(l&&!open&&l.updated<=x.updated)await del(id);continue}
+   if(open)continue;
+   if(!l||l.updated<x.updated){
+    const j=await(await api('p/'+id)).json();let b=l?.pdf;
+    if(!b){const pr=await api('pdf/'+id);if(!pr.ok)continue;b=new Blob([await pr.arrayBuffer()],{type:'application/pdf'})}
+    await put({...j,pdf:b,pdfSynced:true});
+   }}
+  for(const l of loc){const x=rem.get(l.id);if(x?.deleted||(x&&x.updated>=l.updated))continue;
+   if(!l.pdfSynced){if(l.pdf.size>24e6)continue;const pr=await api('pdf/'+l.id,{method:'PUT',body:l.pdf});if(!pr.ok)continue;
+    const c=await getOne(l.id);if(!c)continue;c.pdfSynced=true;if(P&&P.id===c.id)P.pdfSynced=true;await put(c)}
+   const c=await getOne(l.id);if(!c)continue;const {pdf:_a,pdfSynced:_b,...meta}=c;
+   await api('p/'+l.id,{method:'PUT',body:JSON.stringify(meta)});
+  }
+  sy('☁ synced '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}));
+ }catch(e){sy('☁ sync failed')}
+ syncing=false;if(!P)lib();
+}
+addEventListener('online',sync);
+document.addEventListener('visibilitychange',async()=>{
+ if(document.hidden){await flush();sync()}
+ else{sync();if(P)try{wl=await navigator.wakeLock?.request('screen')}catch{}}});
+async function exportAll(){
+ const out=[];for(const p of await getAll()){const d=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(p.pdf)});out.push({...p,pdf:d})}
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(out)],{type:'application/json'}));a.download='stitch-tally-backup.json';a.click();
+}
+$('#rf').onchange=async e=>{
+ const f=e.target.files[0];if(!f)return;
+ for(const p of JSON.parse(await f.text()))await put({...p,pdf:await (await fetch(p.pdf)).blob()});
+ e.target.value='';lib();
+};
+let gsiInit=false;
+function gsi(el){
+ if(!window.google?.accounts?.id){el.textContent='Google sign-in is unavailable right now (offline?).';return}
+ if(!gsiInit){google.accounts.id.initialize({client_id:'576496019414-ehmhgpo86ddu2p0mv6lmf2ueqkkqa0re.apps.googleusercontent.com',callback:onGoogle,auto_select:false});gsiInit=true}
+ google.accounts.id.renderButton(el,{theme:'outline',size:'large',text:'signin_with'});
+}
+async function onGoogle(r){
+ try{
+  const x=await fetch('/api/auth',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({credential:r.credential})});
+  if(!x.ok){alert('Sign-in failed: '+await x.text());return}
+  const j=await x.json();localStorage.st_session=j.session;localStorage.st_user=j.email||'';
+  for(const p of await getAll()){p.pdfSynced=false;await put(p)}
+  settings();sy('☁ signed in');setTimeout(sync,1500);
+ }catch(e){alert('Sign-in failed')}
+}
+function settings(){
+ const t=tok(),u=localStorage.st_user;
+ sheet('<h3>Sync & backup</h3>'+(t?`<p>Signed in${u?' as <b>'+esc(u)+'</b>':''}. Your patterns, counts, highlights and comments sync automatically.</p><div class="row"><button class="p" id="sn">Sync now</button><button id="so">Sign out</button></div>`
+  :'<p>Sign in with Google to sync your patterns, counts, highlights and comments between your phone and PC.</p><div id="gb"></div>')+
+  '<hr><div class="row"><button id="ex">Export backup</button><button id="im">Restore backup</button></div>',el=>{
+  const q=s=>el.querySelector(s),on=(s,f)=>{const b=q(s);if(b)b.onclick=f};
+  if(!t)gsi(q('#gb'));
+  on('#sn',()=>{sync();shut()});
+  on('#so',async()=>{await api('logout',{method:'POST'}).catch(()=>{});localStorage.removeItem('st_session');localStorage.removeItem('st_user');sy('');settings()});
+  on('#ex',exportAll);on('#im',()=>$('#rf').click());
+ });
+}
+$('#bk').onclick=settings;
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+lib();sync();
+</script></body></html>

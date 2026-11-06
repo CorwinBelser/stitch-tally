@@ -1,11 +1,10 @@
 # 🧶 Stitch Tally
-Mobile-first knitting pattern viewer + counters. Static site, no build step. All data (PDFs, counts, notes) stays in your browser (IndexedDB) — use ⋯ → Export for backups.
+Mobile-first knitting pattern viewer: PDF import, counters, movable row/column guides, highlights, comment threads, and free cross-device sync with Google sign-in (Cloudflare Worker + KV).
 
-## Deploy
-1. `git init && git add . && git commit -m "Initial commit"`
-2. Create an empty GitHub repo, then `git remote add origin <url> && git branch -M main && git push -u origin main`
-3. Cloudflare dashboard → Workers & Pages → Create → Pages → Connect to Git → pick the repo.
-   Framework preset: **None**, build command: *(blank)*, output directory: `/`.
-4. On your phone, open the `*.pages.dev` URL → browser menu → **Add to Home screen**.
+## Layout
+- `public/` – static app (Workers static assets)
+- `worker.js` – `/api/*`: verifies Google ID tokens, issues sessions, stores data in KV. The first Google account to sign in owns the instance.
+- `wrangler.jsonc` – config. The KV namespace is auto-created on first deploy; if your build can't do that, create one in the dashboard and add `"id": "<namespace id>"` to the binding.
 
-Every `git push` to `main` redeploys automatically. Bump `V` in `sw.js` when you ship changes so installed copies refresh.
+## Google OAuth setup
+Google Cloud Console → Credentials → OAuth client (Web). Authorized JavaScript origin: your `*.workers.dev` URL (and any custom domain). Put the client ID in `wrangler.jsonc` → `vars.GOOGLE_CLIENT_ID`.
