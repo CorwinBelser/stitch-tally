@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Stitch Tally</title>
 <link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg">
 <meta name="theme-color" content="#6d4c8f">
@@ -8,7 +8,7 @@
 :root{--bg:#faf7fc;--card:#fff;--ink:#241c2c;--mut:#7a6d86;--pri:#6d4c8f;--acc:#e0568a;--line:#e6dfee}
 @media(prefers-color-scheme:dark){:root{--bg:#161219;--card:#221c28;--ink:#f1ebf6;--mut:#a698b3;--pri:#a88bcb;--acc:#ff7fa9;--line:#362d3f}}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;margin:0}
+html,body{height:100%;height:100dvh;margin:0;touch-action:pan-x pan-y}
 body{background:var(--bg);color:var(--ink);font:16px system-ui,sans-serif;padding-top:env(safe-area-inset-top);display:flex;flex-direction:column;overflow:hidden}
 button{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;cursor:pointer}
 button.p{background:var(--pri);color:#fff;border:0}
@@ -27,7 +27,7 @@ header h1{font-size:18px;margin:0;flex:1;overflow:hidden;text-overflow:ellipsis;
 #tools{display:flex;gap:6px;padding:6px 10px;overflow:auto;border-bottom:1px solid var(--line);align-items:center}
 #tools button{padding:6px 12px;white-space:nowrap}
 #cc{width:34px;height:34px;border-radius:50%;padding:0}
-#pdfwrap{flex:1;overflow:auto;position:relative;background:#8884;text-align:center}
+#pdfwrap{flex:1;overflow:auto;position:relative;background:#8884;text-align:center;touch-action:pan-x pan-y;overscroll-behavior:contain}
 #stage{position:relative;display:inline-block;vertical-align:top}
 #cv{display:block}
 #ann,#draw{position:absolute;inset:0}
@@ -51,7 +51,8 @@ body.tool #draw{display:block}
 .chip.on{background:var(--pri);color:#fff;border-color:var(--pri)}
 #ctr{display:flex;align-items:center;gap:10px}
 #ctr .mid{flex:1;text-align:center}
-#val{font-size:52px;font-weight:800;line-height:1}
+#val{font:inherit;font-size:52px;font-weight:800;line-height:1.1;width:100%;text-align:center;background:transparent;border:0;color:var(--ink);padding:0;border-radius:10px}#val:focus{outline:2px solid var(--pri)}
+#plus,#minus{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 #cn{color:var(--mut);font-size:13px}
 #minus{width:64px;height:64px;font-size:28px}
 #plus{width:min(46vw,200px);height:84px;font-size:40px;border-radius:20px}
@@ -71,16 +72,16 @@ code{display:block;padding:10px;background:var(--bg);border-radius:10px;user-sel
 
 <div id="proj" class="hide">
 <header><button id="back">←</button><h1 id="pt"></h1>
-<button id="pm">–</button><span id="pg" style="font-size:13px;color:var(--mut)"></span><button id="pp">+</button></header>
+<button id="pm">–</button><span id="pg" style="font-size:13px;color:var(--mut)"></span><button id="pp">+</button><button id="bk2" title="Sync & backup">⋯</button></header>
 <div id="tools">
 <button data-t="move" class="on" title="Scroll / move">✋</button><button data-t="hl" title="Highlight an area (drag)">🖍</button><button data-t="pin" title="Drop a note (tap)">📍</button>
-<button id="cc" title="Color"></button>
+<button id="fit" title="Fit page / fit width"></button><button id="cc" title="Color"></button>
 <button id="gh" title="Add row guide">━ Row</button><button id="gv" title="Add column guide">┃ Col</button><button id="lst" title="All notes">💬</button></div>
 <div id="pdfwrap"><div id="stage"><canvas id="cv"></canvas><div id="ann"></div><div id="draw"></div></div></div>
 <div id="notes" class="hide"><textarea id="nt" placeholder="Project notes: needle size, mods, reminders…"></textarea>
 <small id="tm"></small></div>
 <div id="dock"><div id="chips"></div>
-<div id="ctr"><button id="minus">−</button><div class="mid"><div id="val">0</div><div id="cn"></div></div><button id="plus" class="p">+</button></div>
+<div id="ctr"><button id="minus" title="Shift-click or hold: −10">−</button><div class="mid"><input id="val" inputmode="numeric" value="0" aria-label="Count" title="Tap to type a count"><div id="cn"></div></div><button id="plus" class="p" title="Shift-click or hold: +10">+</button></div>
 <div style="display:flex;gap:6px;margin-top:8px;justify-content:space-between">
 <button id="undo">↶ Undo</button><button id="zm">🔍−</button><button id="zp">🔍+</button><button id="nb">📝</button><button id="cfg">⚙</button></div></div>
 </div>
@@ -94,6 +95,7 @@ const $=s=>document.querySelector(s),COLS=['#ffd60a','#ff5fa2','#4cd964','#4fc3f
 const dbp=new Promise((res,rej)=>{const r=indexedDB.open('stitchtally',1);r.onupgradeneeded=()=>r.result.createObjectStore('p',{keyPath:'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
 const tx=async(m,f)=>{const d=await dbp;return new Promise((res,rej)=>{const t=d.transaction('p',m);const o=f(t.objectStore('p'));t.oncomplete=()=>res(o.result);t.onerror=()=>rej(t.error)})};
 const getAll=()=>tx('readonly',s=>s.getAll()),getOne=id=>tx('readonly',s=>s.get(id)),put=p=>tx('readwrite',s=>s.put(p)),del=id=>tx('readwrite',s=>s.delete(id));
+let fit=localStorage.st_fit||(innerWidth>innerHeight?'page':'width'),wt,rtok=0;
 let P=null,pdf=null,page=1,zoom=1,ci=0,hist=[],task=null,saveT=null,wl=null,tool='move',col=COLS[0],W=1,H=1,syncT=null,syncing=false,dirty=false,lw=0,rt;
 const buzz=n=>navigator.vibrate&&navigator.vibrate(n),uid=()=>crypto.randomUUID().slice(0,8);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -129,7 +131,7 @@ $('#f').onchange=async e=>{
 
 // ---------- project open/close ----------
 async function openProject(p){
- P=p;P.guides||=[];P.anns||=[];page=p.page||1;zoom=p.zoom||1;ci=0;hist=[];setTool('move');
+ P=p;P.guides||=[];P.anns||=[];page=p.page||1;zoom=p.zoom||1;ci=0;hist=[];setTool('move');fitLbl();
  $('#hl').classList.add('hide');$('#lib').classList.add('hide');$('#proj').classList.remove('hide');
  $('#pt').textContent=p.name;$('#nt').value=p.notes||'';
  try{pdf=await pdfjsLib.getDocument({data:await p.pdf.arrayBuffer()}).promise}catch(e){alert('Could not open that PDF.');return closeProject()}
@@ -144,18 +146,22 @@ async function closeProject(){
 $('#back').onclick=closeProject;
 
 // ---------- rendering ----------
-async function render(){
- if(!pdf)return;task?.cancel();
- const pg=await pdf.getPage(page),w=Math.min($('#pdfwrap').clientWidth,1000);lw=$('#pdfwrap').clientWidth;
- const b=pg.getViewport({scale:1}),s=w/b.width*zoom,r=devicePixelRatio||1,vp=pg.getViewport({scale:s*r}),cv=$('#cv');
- cv.width=vp.width;cv.height=vp.height;W=vp.width/r;H=vp.height/r;cv.style.width=W+'px';cv.style.height=H+'px';
- $('#pg').textContent=page+'/'+pdf.numPages;ov();
+async function render(after){
+ if(!pdf)return;task?.cancel();const my=++rtok;
+ const pg=await pdf.getPage(page);if(my!==rtok)return;
+ const wr=$('#pdfwrap'),aw=wr.clientWidth-6,ah=wr.clientHeight-6;lw=wr.clientWidth;
+ const b=pg.getViewport({scale:1}),fs=fit==='page'?Math.min(aw/b.width,ah/b.height):aw/b.width,s=fs*zoom;
+ const v1=pg.getViewport({scale:s}),r=Math.min(devicePixelRatio||1,Math.sqrt(16e6/(v1.width*v1.height))),vp=pg.getViewport({scale:s*r}),cv=$('#cv');
+ cv.width=vp.width;cv.height=vp.height;W=v1.width;H=v1.height;cv.style.width=W+'px';cv.style.height=H+'px';
+ $('#pg').textContent=page+'/'+pdf.numPages;ov();after&&after();
  task=pg.render({canvasContext:cv.getContext('2d'),viewport:vp});
  try{await task.promise}catch{}
 }
+const fitLbl=()=>{$('#fit').textContent=fit==='page'?'⤢ Page':'↔ Width'};
+$('#fit').onclick=()=>{fit=fit==='page'?'width':'page';localStorage.st_fit=fit;zoom=1;P.zoom=1;save();fitLbl();render();$('#pdfwrap').scrollTo(0,0)};
 const go=n=>{if(n<1||n>pdf.numPages)return;page=n;P.page=n;save();render();$('#pdfwrap').scrollTop=0};
 $('#pm').onclick=()=>go(page-1);$('#pp').onclick=()=>go(page+1);
-$('#zm').onclick=()=>{zoom=Math.max(.5,zoom-.25);P.zoom=zoom;save();render()};
+$('#zm').onclick=()=>{zoom=Math.max(.3,zoom-.25);P.zoom=zoom;save();render()};
 $('#zp').onclick=()=>{zoom=Math.min(4,zoom+.25);P.zoom=zoom;save();render()};
 addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(pdf&&$('#pdfwrap').clientWidth!==lw)render()},200)});
 
@@ -241,11 +247,25 @@ dl.onpointerup=e=>{if(!ds)return;const x=e.clientX-ds.r.left,y=e.clientY-ds.r.to
  else if(tool==='pin'){const n={id:uid(),k:'pin',page,x:ds.x/W,y:ds.y/H,c:col,cm:[]};P.anns.push(n);save();setTool('move');ov();aSheet(n)}
  ds=null};
 
+// ---------- pinch / ctrl-wheel zoom that only zooms the PDF ----------
+document.addEventListener('gesturestart',e=>e.preventDefault());
+{const wr=$('#pdfwrap'),st=$('#stage');let pin=null;
+ const dist=e=>Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+ wr.addEventListener('touchstart',e=>{if(e.touches.length===2&&P){const r=st.getBoundingClientRect(),cx=(e.touches[0].clientX+e.touches[1].clientX)/2,cy=(e.touches[0].clientY+e.touches[1].clientY)/2;
+  pin={d:dist(e),z:zoom,r:1,fx:cx-r.left,fy:cy-r.top};st.style.transformOrigin=pin.fx+'px '+pin.fy+'px'}},{passive:true});
+ wr.addEventListener('touchmove',e=>{if(pin&&e.touches.length===2){e.preventDefault();pin.r=Math.min(4,Math.max(.3,pin.z*dist(e)/pin.d))/pin.z;st.style.transform='scale('+pin.r+')'}},{passive:false});
+ const end=e=>{if(!pin||e.touches.length>=2)return;const s=pin.r,fx=pin.fx,fy=pin.fy;pin=null;st.style.transform='';st.style.transformOrigin='';
+  if(Math.abs(s-1)<.02)return;zoom=Math.min(4,Math.max(.3,zoom*s));P.zoom=zoom;save();
+  render(()=>{wr.scrollLeft+=fx*(s-1);wr.scrollTop+=fy*(s-1)})};
+ wr.addEventListener('touchend',end);wr.addEventListener('touchcancel',end);
+ wr.addEventListener('wheel',e=>{if(!e.ctrlKey||!P)return;e.preventDefault();zoom=Math.min(4,Math.max(.3,zoom*Math.exp(-e.deltaY*.01)));P.zoom=zoom;clearTimeout(wt);wt=setTimeout(()=>{save();render()},120)},{passive:false});
+}
+
 // ---------- counters ----------
 const C=()=>P.counters[ci];
 function ui(){
  $('#chips').innerHTML=P.counters.map((c,i)=>`<button class="chip ${i==ci?'on':''}" data-i="${i}">${esc(c.name)}</button>`).join('')+'<button class="chip" id="nc">+</button>';
- const c=C();$('#val').textContent=c.value;
+ const c=C();$('#val').value=c.value;
  $('#cn').textContent=c.name+(c.repeat?` · repeat every ${c.repeat} · rounds: ${c.laps}`:'');
  $('#tm').textContent='Time on this project: '+fmt(P.seconds||0);
 }
@@ -254,8 +274,19 @@ $('#chips').onclick=e=>{
  const b=e.target.closest('[data-i]');if(b){ci=+b.dataset.i;ui()}
 };
 const snap=()=>{hist.push(JSON.stringify(P.counters));if(hist.length>50)hist.shift()};
-$('#plus').onclick=()=>{snap();const c=C();c.value++;if(c.repeat&&c.value>c.repeat){c.value=1;c.laps++;buzz([30,40,30])}else buzz(15);save();ui()};
-$('#minus').onclick=()=>{snap();const c=C();if(c.value>0)c.value--;if(c.value===0&&c.repeat&&c.laps>0){c.laps--;c.value=c.repeat}buzz(10);save();ui()};
+function bump(n){snap();const c=C();
+ if(n>0)for(let i=0;i<n;i++){c.value++;if(c.repeat&&c.value>c.repeat){c.value=1;c.laps++}}
+ else for(let i=0;i<-n;i++){if(c.value>0)c.value--;if(c.value===0&&c.repeat&&c.laps>0){c.laps--;c.value=c.repeat}}
+ buzz(Math.abs(n)>1?[30,40,30]:15);save();ui()}
+function hold(btn,sign){let t,lp=false;
+ btn.onpointerdown=()=>{lp=false;t=setTimeout(()=>{lp=true;bump(10*sign)},500)};
+ btn.onpointerup=btn.onpointerleave=btn.onpointercancel=()=>clearTimeout(t);
+ btn.oncontextmenu=e=>e.preventDefault();
+ btn.onclick=e=>{if(lp){lp=false;return}bump(e.shiftKey?10*sign:sign)}}
+hold($('#plus'),1);hold($('#minus'),-1);
+$('#val').onfocus=e=>e.target.select();
+$('#val').onkeydown=e=>{if(e.key==='Enter')e.target.blur()};
+$('#val').onchange=e=>{const v=parseInt(e.target.value,10);if(Number.isNaN(v)||v<0){ui();return}snap();C().value=v;save();ui()};
 $('#undo').onclick=()=>{if(hist.length){P.counters=JSON.parse(hist.pop());ci=Math.min(ci,P.counters.length-1);save();ui()}};
 $('#cfg').onclick=()=>{
  const c=C(),a=prompt('Counter options — type: rename, repeat, reset, delete','rename');
@@ -268,10 +299,10 @@ $('#cfg').onclick=()=>{
 $('#nb').onclick=()=>$('#notes').classList.toggle('hide');
 $('#nt').oninput=e=>{P.notes=e.target.value;save()};
 setInterval(()=>{if(P&&!document.hidden){P.seconds=(P.seconds||0)+1;if(P.seconds%30===0)put(P)}},1000);
-addEventListener('keydown',e=>{if(!P||/INPUT|TEXTAREA/.test(e.target.tagName))return;
- if(e.key==='+'||e.key==='='||e.key==='ArrowUp'){e.preventDefault();$('#plus').click()}
- else if(e.key==='-'||e.key==='ArrowDown'){e.preventDefault();$('#minus').click()}
- else if(e.key==='ArrowRight')go(page+1);else if(e.key==='ArrowLeft')go(page-1)});
+addEventListener('keydown',e=>{if(!P||/INPUT|TEXTAREA/.test(e.target.tagName))return;const k=e.key;
+ if(k==='+'||k==='='){e.preventDefault();bump(1)}else if(k==='-'||k==='_'){e.preventDefault();bump(-1)}
+ else if(k==='ArrowUp'){e.preventDefault();bump(e.shiftKey?10:1)}else if(k==='ArrowDown'){e.preventDefault();bump(e.shiftKey?-10:-1)}
+ else if(k==='ArrowRight')go(page+1);else if(k==='ArrowLeft')go(page-1)});
 
 // ---------- sync (free: Cloudflare Worker + KV) ----------
 const tok=()=>localStorage.st_session||'';
@@ -324,7 +355,7 @@ async function onGoogle(r){
   const x=await fetch('/api/auth',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({credential:r.credential})});
   if(!x.ok){alert('Sign-in failed: '+await x.text());return}
   const j=await x.json();localStorage.st_session=j.session;localStorage.st_user=j.email||'';
-  for(const p of await getAll()){p.pdfSynced=false;await put(p)}
+  for(const p of await getAll()){p.pdfSynced=false;await put(p)}if(P)P.pdfSynced=false;
   settings();sy('☁ signed in');setTimeout(sync,1500);
  }catch(e){alert('Sign-in failed')}
 }
@@ -340,7 +371,7 @@ function settings(){
   on('#ex',exportAll);on('#im',()=>$('#rf').click());
  });
 }
-$('#bk').onclick=settings;
+$('#bk').onclick=settings;$('#bk2').onclick=settings;
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 lib();sync();
 </script></body></html>
