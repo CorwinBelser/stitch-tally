@@ -18,3 +18,9 @@ Google Cloud Console → Credentials → OAuth client (Web). Authorized JavaScri
 - Continuous scroll mode (toolbar "Scroll"): all pages stacked, rendered lazily as you scroll; annotations and guides work on every page.
 - Pinned regions (toolbar "Pin"): drag a box around a key or chart and it stays docked above the counter. Tap the active tab to jump to its page.
 - Row reminders (counter settings): "at row 14, start decreases". Fires on increments, including +10 jumps and each round of repeat counters.
+
+## Ravelry import (v5)
+1. Create an app at <https://www.ravelry.com/pro/developer> (OAuth 2.0). Set the callback URL to `https://<your-worker>.workers.dev/api/rav/callback` (your real domain).
+2. In Cloudflare: Workers & Pages → stitch-tally → Settings → Variables and Secrets → add two **Secrets**: `RAVELRY_CLIENT_ID` and `RAVELRY_CLIENT_SECRET`.
+3. In the app: sign in with Google, tap 🧶, then Connect Ravelry. The Worker stores the Ravelry token in KV (never sent to the browser) and requests the `offline` and `library-pdf` scopes.
+Imports are for your own purchased patterns, for personal use. Don't share downloaded PDFs.

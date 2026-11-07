@@ -80,7 +80,7 @@ code{display:block;padding:10px;background:var(--bg);border-radius:10px;user-sel
 </style></head><body>
 
 <header id="hl"><h1>🧶 Stitch Tally</h1><span id="sy"></span>
-<button id="libb" title="Free vintage patterns">📚 Free</button><button id="add" class="p">+ Pattern</button><button id="bk" title="Sync & backup">⋯</button></header>
+<button id="ravb" title="Import from your Ravelry library">🧶</button><button id="libb" title="Free vintage patterns">📚 Free</button><button id="add" class="p">+ Pattern</button><button id="bk" title="Sync & backup">⋯</button></header>
 <div id="lib"></div>
 <input type="file" id="f" accept="application/pdf" hidden><input type="file" id="rf" accept=".json" hidden>
 
@@ -526,6 +526,56 @@ async function addLib(id,btn){
  }catch(e){btn.disabled=false;btn.textContent='Download failed — tap to retry'}
 }
 $('#libb').onclick=()=>freeLib();
+
+// ---------- Ravelry library import (OAuth handled by the Worker; token never reaches the browser) ----------
+const jf=async(path,o)=>{const r=await api(path,o);if(r.status===401)throw new Error('signin');if(!r.ok)throw new Error(path+' '+r.status);return r.json()};
+const dbg=o=>'<details><summary><small>Technical details</small></summary><pre style="white-space:pre-wrap;font-size:11px;max-height:30vh;overflow:auto">'+esc(JSON.stringify(o,null,1).slice(0,1800))+'</pre></details>';
+const volInfo=v=>({title:v.title||v.name||v.pattern?.name||v.product?.name||'Untitled',author:v.author_name||v.author||v.pattern?.pattern_author?.name||v.pattern?.designer?.name||'',pid:v.product_id||v.product?.id||v.pattern?.product_id||null,vid:v.id||null});
+function findPdfs(o,out=[],d=0){
+ if(!o||typeof o!=='object'||d>6)return out;
+ if(Array.isArray(o)){o.forEach(x=>findPdfs(x,out,d+1));return out}
+ const name=String(o.filename||o.file_name||o.name||''),url=o.download_url||o.downloadUrl||o.url||o.href||o.pdf_url||'';
+ if(typeof url==='string'&&url&&(/\.pdf(\?|$)/i.test(name)||/\.pdf(\?|$)/i.test(url)||o.content_type==='application/pdf'||o.mime_type==='application/pdf')&&/^\/|^https?:\/\/([\w-]+\.)*(ravelry|ravelrycache)\.com/i.test(url))out.push({name:name||'pattern.pdf',url});
+ for(const k in o)if(o[k]&&typeof o[k]==='object')findPdfs(o[k],out,d+1);
+ return out;
+}
+async function ravSheet(q=''){
+ if(!tok()){sheet('<h3>🧶 Ravelry</h3><p>Sign in with Google first (⋯ menu). Your Ravelry connection is saved to your account on your own Worker.</p>');return}
+ sheet('<h3>🧶 Ravelry library</h3><p><small>Loading…</small></p>');
+ let st;try{st=await jf('rav/status')}catch{sheet('<h3>🧶 Ravelry</h3><p>Could not reach the server. Are you signed in and online?</p>');return}
+ if(!st.configured){sheet('<h3>🧶 Ravelry</h3><p>Ravelry isn\'t set up on your Worker yet. Add the <b>RAVELRY_CLIENT_ID</b> and <b>RAVELRY_CLIENT_SECRET</b> secrets (steps are in the README), then come back.</p>');return}
+ if(!st.connected){sheet('<h3>🧶 Ravelry</h3><p>Connect your Ravelry account so purchased PDFs in your library can be imported. Ravelry asks you to approve access; your password never touches this app.</p><div class="row"><button class="p" id="rc">Connect Ravelry</button></div>',el=>{el.querySelector('#rc').onclick=async()=>{try{location.href=(await jf('rav/start')).url}catch{alert('Could not start the Ravelry connection.')}}});return}
+ let d;try{d=await jf('rav/library?query='+encodeURIComponent(q))}catch(e){sheet('<h3>🧶 Ravelry</h3><p>Couldn\'t load your library. If you just changed access, disconnect and reconnect.</p><div class="row"><button id="rd">Disconnect</button></div>',el=>el.querySelector('#rd').onclick=async()=>{await api('rav/disconnect',{method:'POST'});ravSheet()});return}
+ const vols=d.volumes||d.library||d.results||[];window._rv=vols;
+ sheet(`<h3>🧶 Ravelry library${st.username?' · '+esc(st.username):''}</h3><div class="row"><input id="rq" placeholder="Search your library" value="${esc(q)}" style="flex:1;min-width:160px"><button class="p" id="rs2">Search</button></div>`+
+  (vols.length?vols.map((v,i)=>{const x=volInfo(v);return `<div class="lcard"><b>${esc(x.title)}</b><small>${esc(x.author)}</small><div class="row"><button class="p" data-i="${i}">Import PDF</button></div></div>`}).join(''):'<p><small>No items found.</small></p>'+dbg(Object.keys(d)))+
+  '<div class="row"><button id="rd">Disconnect Ravelry</button></div><p><small>For your personal use only: imports your own purchased PDFs from your library.</small></p>',
+  el=>{const go=()=>ravSheet(el.querySelector('#rq').value.trim());el.querySelector('#rs2').onclick=go;el.querySelector('#rq').onkeydown=e=>{if(e.key==='Enter')go()};
+   el.querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>ravImport(vols[+b.dataset.i],b));
+   el.querySelector('#rd').onclick=async()=>{if(confirm('Disconnect Ravelry?')){await api('rav/disconnect',{method:'POST'});ravSheet()}}});
+}
+async function ravImport(v,btn){
+ const x=volInfo(v),key=String(x.vid||x.pid||x.title),have=(await getAll()).find(p=>p.ravKey===key);
+ if(have){shut();openProject(have);return}
+ btn.disabled=true;btn.textContent='Looking for the PDF…';
+ try{
+  let files=findPdfs(v);
+  if(!files.length&&x.pid)files=findPdfs(await jf('rav/product/'+x.pid));
+  if(!files.length&&x.vid)files=findPdfs(await jf('rav/volume/'+x.vid));
+  if(!files.length){btn.disabled=false;btn.textContent='No PDF found';const t=document.createElement('div');t.innerHTML=dbg(v);btn.parentElement.after(t);return}
+  const f=files.find(z=>/\.pdf/i.test(z.name))||files[0];
+  const r=await api('rav/file?url='+encodeURIComponent(f.url));if(!r.ok)throw new Error('download '+r.status);
+  const total=+r.headers.get('content-length')||0,rd=r.body.getReader(),parts=[];let got=0;
+  for(;;){const {done,value}=await rd.read();if(done)break;parts.push(value);got+=value.length;btn.textContent='Downloading… '+(total?Math.round(got/total*100)+'%':(got/1e6).toFixed(1)+' MB')}
+  const blob=new Blob(parts,{type:'application/pdf'}),head=new Uint8Array(await blob.slice(0,4).arrayBuffer());
+  if(head[0]!==37||head[1]!==80||head[2]!==68||head[3]!==70)throw new Error('not a PDF');
+  const p={id:uid()+uid(),ravKey:key,name:x.title,created:Date.now(),updated:Date.now(),pdf:blob,page:1,zoom:1,seconds:0,guides:[],anns:[],crops:[],
+   notes:'Imported from my Ravelry library: '+x.title+(x.author?' by '+x.author:'')+'.\nFile: '+f.name+'. Personal use only.\n',counters:[{id:1,name:'Rows',value:0,repeat:0,laps:0}]};
+  await put(p);shut();openProject(p);syncSoon();
+ }catch(e){btn.disabled=false;btn.textContent='Import failed — tap to retry'}
+}
+$('#ravb').onclick=()=>ravSheet();
+if(location.hash==='#ravelry'){history.replaceState(null,'',location.pathname);setTimeout(()=>ravSheet(),600)}
 
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 lib();sync();
