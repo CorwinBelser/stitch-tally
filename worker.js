@@ -23,6 +23,16 @@ export default{async fetch(req,env){
  const url=new URL(req.url),seg=url.pathname.split('/').filter(Boolean);
  if(seg[0]!=='api')return env.ASSETS.fetch(req);
 
+ if(seg[1]==='lib'&&req.method==='GET'){
+  // Streams a catalog PDF from archive.org (only items listed in public/library.json), so browsers avoid CORS problems.
+  const cat=await(await env.ASSETS.fetch(new Request(new URL('/library.json',req.url)))).json();
+  const it=cat.items.find(i=>i.id===seg[2]&&i.pdf);if(!it)return new Response('not found',{status:404});
+  if(new URL(it.pdf).hostname!=='archive.org')return new Response('blocked',{status:403});
+  const r=await fetch(it.pdf);if(!r.ok)return new Response('upstream '+r.status,{status:502});
+  const hd=new Headers({'content-type':'application/pdf','cache-control':'public, max-age=86400'});const cl=r.headers.get('content-length');if(cl)hd.set('content-length',cl);
+  return new Response(r.body,{headers:hd});
+ }
+
  if(seg[1]==='auth'&&req.method==='POST'){
   let c;try{c=await verifyGoogle((await req.json()).credential,env)}catch{return new Response('Invalid Google token',{status:401})}
   const owner=await env.KV.get('owner');

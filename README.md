@@ -8,3 +8,8 @@ Mobile-first knitting pattern viewer: PDF import, counters, movable row/column g
 
 ## Google OAuth setup
 Google Cloud Console → Credentials → OAuth client (Web). Authorized JavaScript origin: your `*.workers.dev` URL (and any custom domain). Put the client ID in `wrangler.jsonc` → `vars.GOOGLE_CLIENT_ID`.
+
+## Features added in v3
+- Undo/redo (Ctrl+Z / Ctrl+Shift+Z, plus on-screen buttons) covers counters, guides, highlights and comments.
+- Row text: reads the PDF's own text layer for "Row N", "Rnd N" and "1st row" lines and shows the one matching the active counter.
+- Free library (`public/library.json`): public-domain vintage patterns. `/api/lib/:id` streams the listed archive.org PDFs through the Worker. Only catalog entries can be fetched.

@@ -63,10 +63,17 @@ body.tool #draw{display:block}
 .cm{position:relative;padding:8px 34px 8px 0;border-bottom:1px solid var(--line)}
 .cm button{position:absolute;right:0;top:6px;padding:2px 8px}
 code{display:block;padding:10px;background:var(--bg);border-radius:10px;user-select:all;word-break:break-all}
+#rowtxt{padding:8px 12px;border-top:1px solid var(--line);background:var(--card);max-height:30vh;overflow:auto}
+#rowtxt .rh{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--mut);font-size:13px}
+#rowtxt .rh button{padding:2px 10px}
+#rbody{font-size:19px;line-height:1.35;margin:4px 0}
+#rnext{color:var(--mut)}
+.lcard{padding:12px 0;border-bottom:1px solid var(--line)}.lcard b,.lcard small{display:block}
+.btn{display:inline-block;padding:10px 14px;border:1px solid var(--line);border-radius:12px;text-decoration:none;color:inherit;background:var(--card)}
 </style></head><body>
 
 <header id="hl"><h1>🧶 Stitch Tally</h1><span id="sy"></span>
-<button id="add" class="p">+ Pattern</button><button id="bk" title="Sync & backup">⋯</button></header>
+<button id="libb" title="Free vintage patterns">📚 Free</button><button id="add" class="p">+ Pattern</button><button id="bk" title="Sync & backup">⋯</button></header>
 <div id="lib"></div>
 <input type="file" id="f" accept="application/pdf" hidden><input type="file" id="rf" accept=".json" hidden>
 
@@ -74,10 +81,11 @@ code{display:block;padding:10px;background:var(--bg);border-radius:10px;user-sel
 <header><button id="back">←</button><h1 id="pt"></h1>
 <button id="pm">–</button><span id="pg" style="font-size:13px;color:var(--mut)"></span><button id="pp">+</button><button id="bk2" title="Sync & backup">⋯</button></header>
 <div id="tools">
-<button data-t="move" class="on" title="Scroll / move">✋</button><button data-t="hl" title="Highlight an area (drag)">🖍</button><button data-t="pin" title="Drop a note (tap)">📍</button>
+<button id="u1" title="Undo (Ctrl+Z)">↶</button><button id="u2" title="Redo (Ctrl+Shift+Z)">↷</button><button data-t="move" class="on" title="Scroll / move">✋</button><button data-t="hl" title="Highlight an area (drag)">🖍</button><button data-t="pin" title="Drop a note (tap)">📍</button>
 <button id="fit" title="Fit page / fit width"></button><button id="cc" title="Color"></button>
-<button id="gh" title="Add row guide">━ Row</button><button id="gv" title="Add column guide">┃ Col</button><button id="lst" title="All notes">💬</button></div>
+<button id="gh" title="Add row guide">━ Row</button><button id="gv" title="Add column guide">┃ Col</button><button id="lst" title="All notes">💬</button><button id="rtb" title="Show the current row's text">Aa Row</button></div>
 <div id="pdfwrap"><div id="stage"><canvas id="cv"></canvas><div id="ann"></div><div id="draw"></div></div></div>
+<div id="rowtxt" class="hide"><div class="rh"><b id="rhd"></b><span><button id="rp">◀</button> <button id="rn">▶</button></span></div><div id="rbody"></div><small id="rnext"></small></div>
 <div id="notes" class="hide"><textarea id="nt" placeholder="Project notes: needle size, mods, reminders…"></textarea>
 <small id="tm"></small></div>
 <div id="dock"><div id="chips"></div>
@@ -95,6 +103,7 @@ const $=s=>document.querySelector(s),COLS=['#ffd60a','#ff5fa2','#4cd964','#4fc3f
 const dbp=new Promise((res,rej)=>{const r=indexedDB.open('stitchtally',1);r.onupgradeneeded=()=>r.result.createObjectStore('p',{keyPath:'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
 const tx=async(m,f)=>{const d=await dbp;return new Promise((res,rej)=>{const t=d.transaction('p',m);const o=f(t.objectStore('p'));t.oncomplete=()=>res(o.result);t.onerror=()=>rej(t.error)})};
 const getAll=()=>tx('readonly',s=>s.getAll()),getOne=id=>tx('readonly',s=>s.get(id)),put=p=>tx('readwrite',s=>s.put(p)),del=id=>tx('readwrite',s=>s.delete(id));
+let RT=[],rtDone=false,rtPick=0,rtV=-1,showRT=localStorage.st_rt!=='0',redo=[],CAT=null;
 let fit=localStorage.st_fit||(innerWidth>innerHeight?'page':'width'),wt,rtok=0;
 let P=null,pdf=null,page=1,zoom=1,ci=0,hist=[],task=null,saveT=null,wl=null,tool='move',col=COLS[0],W=1,H=1,syncT=null,syncing=false,dirty=false,lw=0,rt;
 const buzz=n=>navigator.vibrate&&navigator.vibrate(n),uid=()=>crypto.randomUUID().slice(0,8);
@@ -131,11 +140,11 @@ $('#f').onchange=async e=>{
 
 // ---------- project open/close ----------
 async function openProject(p){
- P=p;P.guides||=[];P.anns||=[];page=p.page||1;zoom=p.zoom||1;ci=0;hist=[];setTool('move');fitLbl();
+ P=p;P.guides||=[];P.anns||=[];page=p.page||1;zoom=p.zoom||1;ci=0;hist=[];redo=[];setTool('move');fitLbl();
  $('#hl').classList.add('hide');$('#lib').classList.add('hide');$('#proj').classList.remove('hide');
  $('#pt').textContent=p.name;$('#nt').value=p.notes||'';
  try{pdf=await pdfjsLib.getDocument({data:await p.pdf.arrayBuffer()}).promise}catch(e){alert('Could not open that PDF.');return closeProject()}
- page=Math.min(page,pdf.numPages);ui();render();
+ page=Math.min(page,pdf.numPages);ui();render();indexText();
  try{wl=await navigator.wakeLock?.request('screen')}catch{}
 }
 async function closeProject(){
@@ -159,7 +168,7 @@ async function render(after){
 }
 const fitLbl=()=>{$('#fit').textContent=fit==='page'?'⤢ Page':'↔ Width'};
 $('#fit').onclick=()=>{fit=fit==='page'?'width':'page';localStorage.st_fit=fit;zoom=1;P.zoom=1;save();fitLbl();render();$('#pdfwrap').scrollTo(0,0)};
-const go=n=>{if(n<1||n>pdf.numPages)return;page=n;P.page=n;save();render();$('#pdfwrap').scrollTop=0};
+const go=n=>{if(n<1||n>pdf.numPages)return;page=n;P.page=n;rtPick=0;save();render();rowText();$('#pdfwrap').scrollTop=0};
 $('#pm').onclick=()=>go(page-1);$('#pp').onclick=()=>go(page+1);
 $('#zm').onclick=()=>{zoom=Math.max(.3,zoom-.25);P.zoom=zoom;save();render()};
 $('#zp').onclick=()=>{zoom=Math.min(4,zoom+.25);P.zoom=zoom;save();render()};
@@ -187,7 +196,7 @@ function gEl(g){
  const k=document.createElement('div');k.className='gh '+g.o;k.textContent=h?'⇅':'⇄';d.append(k);
  let m=0,sx,sy;
  k.onpointerdown=e=>{k.setPointerCapture(e.pointerId);m=0;sx=e.clientX;sy=e.clientY};
- k.onpointermove=e=>{if(!k.hasPointerCapture(e.pointerId))return;if(Math.hypot(e.clientX-sx,e.clientY-sy)>5)m=1;if(!m)return;
+ k.onpointermove=e=>{if(!k.hasPointerCapture(e.pointerId))return;if(!m&&Math.hypot(e.clientX-sx,e.clientY-sy)>5){m=1;snap()}if(!m)return;
   const r=$('#stage').getBoundingClientRect();g.p=clamp(h?(e.clientY-r.top)/H:(e.clientX-r.left)/W);gPlace(d,g)};
  k.onpointerup=()=>{if(m)save();else gSheet(g)};
  return d;
@@ -197,16 +206,16 @@ function ph(){const w=$('#pdfwrap'),st=$('#stage');
  document.querySelectorAll('.gh.v').forEach(h=>{h.style.top=Math.max(0,w.scrollTop+w.clientHeight/2-st.offsetTop-24)+'px'})}
 $('#pdfwrap').onscroll=ph;
 function addG(o){const w=$('#pdfwrap');
- P.guides.push({id:uid(),o,p:o==='h'?clamp((w.scrollTop+w.clientHeight/3)/H):.5,t:o==='h'?.03:.06,c:col,page,all:false});save();ov()}
+ snap();P.guides.push({id:uid(),o,p:o==='h'?clamp((w.scrollTop+w.clientHeight/3)/H):.5,t:o==='h'?.03:.06,c:col,page,all:false});save();ov()}
 $('#gh').onclick=()=>addG('h');$('#gv').onclick=()=>addG('v');
 function gSheet(g){
  sheet(`<h3>${g.o==='h'?'Row':'Column'} guide</h3><div class="row"><button id="t1">Thinner</button><button id="t2">Thicker</button></div>
  <label><input type="checkbox" id="al" ${g.all?'checked':''}> Show on every page</label>${swatches()}<div class="row"><button id="dl">Delete guide</button></div>`,el=>{
-  el.querySelector('#t1').onclick=()=>{g.t=Math.max(.006,g.t/1.3);save();ov()};
-  el.querySelector('#t2').onclick=()=>{g.t=Math.min(.3,g.t*1.3);save();ov()};
-  el.querySelector('#al').onchange=e=>{g.all=e.target.checked;save();ov()};
-  el.querySelectorAll('[data-c]').forEach(i=>i.onclick=()=>{g.c=i.dataset.c;save();ov()});
-  el.querySelector('#dl').onclick=()=>{P.guides=P.guides.filter(x=>x!==g);save();ov();shut()};
+  el.querySelector('#t1').onclick=()=>{snap();g.t=Math.max(.006,g.t/1.3);save();ov()};
+  el.querySelector('#t2').onclick=()=>{snap();g.t=Math.min(.3,g.t*1.3);save();ov()};
+  el.querySelector('#al').onchange=e=>{snap();g.all=e.target.checked;save();ov()};
+  el.querySelectorAll('[data-c]').forEach(i=>i.onclick=()=>{snap();g.c=i.dataset.c;save();ov()});
+  el.querySelector('#dl').onclick=()=>{snap();P.guides=P.guides.filter(x=>x!==g);save();ov();shut()};
  });
 }
 function nEl(n){
@@ -221,11 +230,11 @@ function aSheet(n){
  sheet(`<h3>${n.k==='pin'?'📍 Note':'🖍 Highlight'} · page ${n.page}</h3>${th}<textarea id="ci" placeholder="Add a comment…" style="margin-top:10px"></textarea>
  <div class="row"><button class="p" id="ca">Comment</button><button id="rs">${n.done?'Reopen':'Resolve'}</button><button id="dl">Delete</button></div>${swatches()}`,el=>{
   const q=s=>el.querySelector(s);
-  q('#ca').onclick=()=>{const v=q('#ci').value.trim();if(!v)return;n.cm.push({t:Date.now(),x:v});save();ov();aSheet(n)};
-  el.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{n.cm.splice(+b.dataset.d,1);save();ov();aSheet(n)});
-  q('#rs').onclick=()=>{n.done=!n.done;save();ov();shut()};
-  q('#dl').onclick=()=>{P.anns=P.anns.filter(a=>a!==n);save();ov();shut()};
-  el.querySelectorAll('[data-c]').forEach(i=>i.onclick=()=>{n.c=i.dataset.c;save();ov();aSheet(n)});
+  q('#ca').onclick=()=>{const v=q('#ci').value.trim();if(!v)return;snap();n.cm.push({t:Date.now(),x:v});save();ov();aSheet(n)};
+  el.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{snap();n.cm.splice(+b.dataset.d,1);save();ov();aSheet(n)});
+  q('#rs').onclick=()=>{snap();n.done=!n.done;save();ov();shut()};
+  q('#dl').onclick=()=>{snap();P.anns=P.anns.filter(a=>a!==n);save();ov();shut()};
+  el.querySelectorAll('[data-c]').forEach(i=>i.onclick=()=>{snap();n.c=i.dataset.c;save();ov();aSheet(n)});
   if(n.k==='pin'&&!n.cm.length)q('#ci').focus();
  });
 }
@@ -243,8 +252,8 @@ dl.onpointermove=e=>{if(!ds||tool!=='hl')return;const x=e.clientX-ds.r.left,y=e.
 dl.onpointercancel=()=>{pv?.remove();pv=null;ds=null};
 dl.onpointerup=e=>{if(!ds)return;const x=e.clientX-ds.r.left,y=e.clientY-ds.r.top;
  if(tool==='hl'){pv?.remove();pv=null;const w=Math.abs(x-ds.x),h=Math.abs(y-ds.y);
-  if(w>8&&h>4){P.anns.push({id:uid(),k:'hl',page,x:Math.min(x,ds.x)/W,y:Math.min(y,ds.y)/H,w:w/W,h:h/H,c:col,cm:[]});save();ov()}}
- else if(tool==='pin'){const n={id:uid(),k:'pin',page,x:ds.x/W,y:ds.y/H,c:col,cm:[]};P.anns.push(n);save();setTool('move');ov();aSheet(n)}
+  if(w>8&&h>4){snap();P.anns.push({id:uid(),k:'hl',page,x:Math.min(x,ds.x)/W,y:Math.min(y,ds.y)/H,w:w/W,h:h/H,c:col,cm:[]});save();ov()}}
+ else if(tool==='pin'){const n={id:uid(),k:'pin',page,x:ds.x/W,y:ds.y/H,c:col,cm:[]};snap();P.anns.push(n);save();setTool('move');ov();aSheet(n)}
  ds=null};
 
 // ---------- pinch / ctrl-wheel zoom that only zooms the PDF ----------
@@ -267,13 +276,17 @@ function ui(){
  $('#chips').innerHTML=P.counters.map((c,i)=>`<button class="chip ${i==ci?'on':''}" data-i="${i}">${esc(c.name)}</button>`).join('')+'<button class="chip" id="nc">+</button>';
  const c=C();$('#val').value=c.value;
  $('#cn').textContent=c.name+(c.repeat?` · repeat every ${c.repeat} · rounds: ${c.laps}`:'');
- $('#tm').textContent='Time on this project: '+fmt(P.seconds||0);
+ $('#tm').textContent='Time on this project: '+fmt(P.seconds||0);rowText();
 }
 $('#chips').onclick=e=>{
  if(e.target.id==='nc'){const n=prompt('New counter name (e.g. Repeats, Increases)');if(n){P.counters.push({id:Date.now(),name:n,value:0,repeat:0,laps:0});ci=P.counters.length-1;save();ui()}return}
  const b=e.target.closest('[data-i]');if(b){ci=+b.dataset.i;ui()}
 };
-const snap=()=>{hist.push(JSON.stringify(P.counters));if(hist.length>50)hist.shift()};
+const state=()=>JSON.stringify({c:P.counters,g:P.guides,a:P.anns});
+const snap=()=>{hist.push(state());if(hist.length>60)hist.shift();redo=[]};
+function restore(s){const o=JSON.parse(s);P.counters=o.c;P.guides=o.g;P.anns=o.a;ci=Math.min(ci,P.counters.length-1);shut();save();ui();ov()}
+function undo(){if(!P||!hist.length)return;redo.push(state());restore(hist.pop())}
+function redoIt(){if(!P||!redo.length)return;hist.push(state());restore(redo.pop())}
 function bump(n){snap();const c=C();
  if(n>0)for(let i=0;i<n;i++){c.value++;if(c.repeat&&c.value>c.repeat){c.value=1;c.laps++}}
  else for(let i=0;i<-n;i++){if(c.value>0)c.value--;if(c.value===0&&c.repeat&&c.laps>0){c.laps--;c.value=c.repeat}}
@@ -287,7 +300,7 @@ hold($('#plus'),1);hold($('#minus'),-1);
 $('#val').onfocus=e=>e.target.select();
 $('#val').onkeydown=e=>{if(e.key==='Enter')e.target.blur()};
 $('#val').onchange=e=>{const v=parseInt(e.target.value,10);if(Number.isNaN(v)||v<0){ui();return}snap();C().value=v;save();ui()};
-$('#undo').onclick=()=>{if(hist.length){P.counters=JSON.parse(hist.pop());ci=Math.min(ci,P.counters.length-1);save();ui()}};
+$('#undo').onclick=undo;$('#u1').onclick=undo;$('#u2').onclick=redoIt;
 $('#cfg').onclick=()=>{
  const c=C(),a=prompt('Counter options — type: rename, repeat, reset, delete','rename');
  if(a==='rename'){const n=prompt('Name',c.name);if(n)c.name=n}
@@ -300,6 +313,8 @@ $('#nb').onclick=()=>$('#notes').classList.toggle('hide');
 $('#nt').oninput=e=>{P.notes=e.target.value;save()};
 setInterval(()=>{if(P&&!document.hidden){P.seconds=(P.seconds||0)+1;if(P.seconds%30===0)put(P)}},1000);
 addEventListener('keydown',e=>{if(!P||/INPUT|TEXTAREA/.test(e.target.tagName))return;const k=e.key;
+ if((e.ctrlKey||e.metaKey)&&k.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redoIt():undo();return}
+ if((e.ctrlKey||e.metaKey)&&k.toLowerCase()==='y'){e.preventDefault();redoIt();return}
  if(k==='+'||k==='='){e.preventDefault();bump(1)}else if(k==='-'||k==='_'){e.preventDefault();bump(-1)}
  else if(k==='ArrowUp'){e.preventDefault();bump(e.shiftKey?10:1)}else if(k==='ArrowDown'){e.preventDefault();bump(e.shiftKey?-10:-1)}
  else if(k==='ArrowRight')go(page+1);else if(k==='ArrowLeft')go(page-1)});
@@ -318,11 +333,11 @@ async function sync(){
    if(isOpen)continue;
    if(!l||l.updated<x.updated){
     const j=await(await api('p/'+id)).json();let b=l?.pdf;
-    if(!b){const pr=await api('pdf/'+id);if(!pr.ok)continue;b=new Blob([await pr.arrayBuffer()],{type:'application/pdf'})}
+    if(!b){const pr=j.libId?await fetch('/api/lib/'+j.libId):await api('pdf/'+id);if(!pr.ok)continue;b=new Blob([await pr.arrayBuffer()],{type:'application/pdf'})}
     await put({...j,pdf:b,pdfSynced:true});
    }}
   for(const l of loc){const x=rem.get(l.id);if(x?.deleted||(x&&x.updated>=l.updated))continue;
-   if(!l.pdfSynced){if(l.pdf.size>24e6)continue;const pr=await api('pdf/'+l.id,{method:'PUT',body:l.pdf});if(!pr.ok)continue;
+   if(!l.pdfSynced&&!l.libId){if(l.pdf.size>24e6)continue;const pr=await api('pdf/'+l.id,{method:'PUT',body:l.pdf});if(!pr.ok)continue;
     const c=await getOne(l.id);if(!c)continue;c.pdfSynced=true;if(P&&P.id===c.id)P.pdfSynced=true;await put(c)}
    const c=await getOne(l.id);if(!c)continue;const {pdf:_a,pdfSynced:_b,...meta}=c;
    await api('p/'+l.id,{method:'PUT',body:JSON.stringify(meta)});
@@ -372,6 +387,74 @@ function settings(){
  });
 }
 $('#bk').onclick=settings;$('#bk2').onclick=settings;
+// ---------- current-row text (reads the PDF's own text layer) ----------
+const R1=/^\s*(?:rows?|rnds?|rounds?|rds?)\.?\s*((?:\d+\s*(?:[-–—]|to|through)\s*\d+|\d+)(?:\s*(?:,|&|and)\s*(?:\d+\s*(?:[-–—]|to|through)\s*\d+|\d+))*)\s*(\([^)]*\))?\s*[:.\-–—]*\s*(.*)$/i;
+const R2=/^\s*(\d+)(?:st|nd|rd|th)\s*(?:rows?|rounds?|rnds?)\b[\s.:\-–—]*(.*)$/i;
+const nums=s=>{const o=[];for(const part of s.split(/\s*(?:,|&|\band\b)\s*/i)){const m=part.match(/^(\d+)\s*(?:[-–—]|to|through)\s*(\d+)$/i);
+ if(m){for(let k=+m[1];k<=Math.min(+m[2],+m[1]+400);k++)o.push(k)}else if(/^\d+$/.test(part.trim()))o.push(+part)}return o};
+async function indexText(){
+ RT=[];rtDone=false;const id=P.id;let seq=0;rowText();
+ for(let i=1;i<=pdf.numPages;i++){
+  if(!P||P.id!==id)return;
+  let tc;try{tc=await(await pdf.getPage(i)).getTextContent()}catch{continue}
+  const lines=[];let cur='',ly=null;
+  for(const it of tc.items){const y=it.transform[5];if(ly!==null&&Math.abs(y-ly)>2&&cur){lines.push(cur);cur=''}cur+=it.str;ly=y;if(it.hasEOL){lines.push(cur);cur='';ly=null}}
+  if(cur)lines.push(cur);
+  let last=null;
+  for(const raw of lines){const t=raw.replace(/\s+/g,' ').trim();if(!t)continue;
+   let m=t.match(R1),r=null;
+   if(m)r={page:i,seq:seq++,ns:nums(m[1]),text:m[3]||''};
+   else if(m=t.match(R2))r={page:i,seq:seq++,ns:[+m[1]],text:m[2]||''};
+   if(r&&r.ns.length){RT.push(r);last=r}
+   else if(last&&last.text.length<500&&!/^[A-Z][A-Z\s\d.:,'-]{2,40}$/.test(t))last.text+=(last.text?' ':'')+t;
+   else last=null;
+  }
+  if(i%8===0){rowText();await new Promise(r=>setTimeout(r))}
+ }
+ rtDone=true;rowText();
+}
+const cands=(n,pg=page)=>RT.filter(r=>r.ns.includes(n)).sort((a,b)=>Math.abs(a.page-pg)-Math.abs(b.page-pg)||a.seq-b.seq);
+function rowText(){
+ const el=$('#rowtxt');
+ if(!P||!showRT){el.classList.add('hide');return}
+ el.classList.remove('hide');
+ const v=C().value;if(v!==rtV){rtPick=0;rtV=v}
+ const set=(h,b,n)=>{$('#rhd').textContent=h;$('#rbody').textContent=b;$('#rnext').textContent=n||''};
+ if(!RT.length){set(rtDone?'Row text':'Row text · reading PDF…',rtDone?'No "Row N" or "1st row" instructions found in this PDF\'s text layer. Scanned pages without readable text can\'t be followed.':'');return}
+ const t=Math.max(1,v),c=cands(t);
+ if(!c.length){set('Row '+t,'No matching row text found.');return}
+ const k=rtPick%c.length,r=c[k],nx=cands(t+1,r.page)[0];
+ set((v?'Row '+v:'Up next: Row 1')+' · p.'+r.page+(c.length>1?' · match '+(k+1)+' of '+c.length:''),r.text||'(no text on this line)',nx?'Next: '+nx.text.slice(0,140):'');
+}
+function cyc(d){const c=cands(Math.max(1,C().value));if(c.length>1){rtPick=(rtPick+d+c.length)%c.length;rowText();const r=c[rtPick%c.length];if(r.page!==page)go(r.page)}}
+$('#rp').onclick=()=>cyc(-1);$('#rn').onclick=()=>cyc(1);
+$('#rtb').onclick=()=>{showRT=!showRT;localStorage.st_rt=showRT?'1':'0';rowText()};
+
+// ---------- free public-domain pattern library ----------
+async function freeLib(filter='all'){
+ if(!CAT){try{CAT=await(await fetch('library.json')).json()}catch{sheet('<h3>Free patterns</h3><p>Could not load the catalog (offline?).</p>');return}}
+ const list=CAT.items.filter(x=>filter==='all'||x.craft===filter),on=f=>filter===f?' class="on"':'';
+ sheet(`<h3>📚 Free vintage patterns</h3><p><small>Public-domain works (US) from the Library of Congress, Internet Archive and Project Gutenberg. Each item shows its rights note, so check your own country's rules too. Scans are large (often tens of MB), so use Wi-Fi. Scanned text can be imperfect.</small></p>
+ <div class="row"><button data-f="all"${on('all')}>All</button><button data-f="knit"${on('knit')}>Hand knitting</button><button data-f="machine"${on('machine')}>Machine knitting</button></div>`+
+ list.map(x=>`<div class="lcard"><b>${esc(x.title)}</b><small>${esc([x.author,x.year].filter(Boolean).join(' · '))}</small><div>${esc(x.blurb)}</div><small>Source: ${esc(x.source)}<br>${esc(x.rights)}</small><div class="row">${x.pdf?`<button class="p" data-add="${x.id}">Add to my patterns</button>`:''}<a class="btn" href="${esc(x.sourceUrl)}" target="_blank" rel="noopener">${x.pdf?'Source page ↗':'Open source ↗ (no PDF)'}</a></div></div>`).join(''),
+ el=>{el.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>freeLib(b.dataset.f));el.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addLib(b.dataset.add,b))});
+}
+async function addLib(id,btn){
+ const x=CAT.items.find(i=>i.id===id),have=(await getAll()).find(p=>p.libId===id);
+ if(have){shut();openProject(have);return}
+ btn.disabled=true;
+ try{
+  const r=await fetch('/api/lib/'+id);if(!r.ok)throw new Error(r.status);
+  const total=+r.headers.get('content-length')||0,rd=r.body.getReader(),parts=[];let got=0;
+  for(;;){const {done,value}=await rd.read();if(done)break;parts.push(value);got+=value.length;btn.textContent='Downloading… '+(total?Math.round(got/total*100)+'%':(got/1e6).toFixed(0)+' MB')}
+  const p={id:uid()+uid(),libId:id,name:x.title+(x.year?' ('+x.year+')':''),created:Date.now(),updated:Date.now(),pdf:new Blob(parts,{type:'application/pdf'}),page:1,zoom:1,seconds:0,guides:[],anns:[],
+   notes:'Source: '+x.title+(x.author?', '+x.author:'')+(x.year?' ('+x.year+')':'')+'. '+x.source+'. '+x.sourceUrl+'\n'+x.rights+'\n',
+   counters:[{id:1,name:'Rows',value:0,repeat:0,laps:0}]};
+  await put(p);shut();openProject(p);syncSoon();
+ }catch(e){btn.disabled=false;btn.textContent='Download failed — tap to retry'}
+}
+$('#libb').onclick=()=>freeLib();
+
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 lib();sync();
 </script></body></html>
