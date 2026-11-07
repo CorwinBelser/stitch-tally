@@ -28,12 +28,13 @@ header h1{font-size:18px;margin:0;flex:1;overflow:hidden;text-overflow:ellipsis;
 #tools button{padding:6px 12px;white-space:nowrap}
 #cc{width:34px;height:34px;border-radius:50%;padding:0}
 #pdfwrap{flex:1;overflow:auto;position:relative;background:#8884;text-align:center;touch-action:pan-x pan-y;overscroll-behavior:contain}
-#stage{position:relative;display:inline-block;vertical-align:top}
-#cv{display:block}
-#ann,#draw{position:absolute;inset:0}
-#ann{pointer-events:none}
-#draw{display:none;touch-action:none;cursor:crosshair;z-index:3}
-body.tool #draw{display:block}
+#pages{position:relative;display:inline-block;vertical-align:top;text-align:left}
+.pgbox{position:relative;margin:0 auto 8px;background:#fff}
+.pgbox canvas{display:block}
+.ann,.draw{position:absolute;inset:0}
+.ann{pointer-events:none}
+.draw{display:none;touch-action:none;cursor:crosshair;z-index:3}
+body.tool .draw{display:block}
 .a{position:absolute;pointer-events:auto;cursor:pointer}
 .hl{mix-blend-mode:multiply;border-radius:2px}
 .pin{width:30px;height:30px;border-radius:50%;transform:translate(-50%,-50%);display:grid;place-items:center;border:2px solid #fff;box-shadow:0 1px 4px #0006;font-size:15px}
@@ -70,6 +71,12 @@ code{display:block;padding:10px;background:var(--bg);border-radius:10px;user-sel
 #rnext{color:var(--mut)}
 .lcard{padding:12px 0;border-bottom:1px solid var(--line)}.lcard b,.lcard small{display:block}
 .btn{display:inline-block;padding:10px 14px;border:1px solid var(--line);border-radius:12px;text-decoration:none;color:inherit;background:var(--card)}
+.crop,.cropprev{pointer-events:none;border:2px dashed var(--pri);background:#6d4c8f1a}
+#pins{border-top:1px solid var(--line);background:var(--card);padding:6px 12px;max-height:34vh;overflow:auto}
+#pins .rh{display:flex;gap:6px;align-items:center}#pins .rh button{padding:2px 10px}
+#pcv{display:block;margin:6px 0}
+#toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(60px + env(safe-area-inset-top));max-width:min(92vw,520px);background:var(--pri);color:#fff;padding:12px 16px;border-radius:14px;z-index:8;box-shadow:0 4px 16px #0006;font-size:17px}
+.sb input:not([type=checkbox]){font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px}
 </style></head><body>
 
 <header id="hl"><h1>🧶 Stitch Tally</h1><span id="sy"></span>
@@ -81,11 +88,12 @@ code{display:block;padding:10px;background:var(--bg);border-radius:10px;user-sel
 <header><button id="back">←</button><h1 id="pt"></h1>
 <button id="pm">–</button><span id="pg" style="font-size:13px;color:var(--mut)"></span><button id="pp">+</button><button id="bk2" title="Sync & backup">⋯</button></header>
 <div id="tools">
-<button id="u1" title="Undo (Ctrl+Z)">↶</button><button id="u2" title="Redo (Ctrl+Shift+Z)">↷</button><button data-t="move" class="on" title="Scroll / move">✋</button><button data-t="hl" title="Highlight an area (drag)">🖍</button><button data-t="pin" title="Drop a note (tap)">📍</button>
+<button id="u1" title="Undo (Ctrl+Z)">↶</button><button id="u2" title="Redo (Ctrl+Shift+Z)">↷</button><button data-t="move" class="on" title="Scroll / move">✋</button><button data-t="hl" title="Highlight an area (drag)">🖍</button><button data-t="pin" title="Drop a note (tap)">📍</button><button data-t="crop" title="Pin a region (key, chart) above the counter">✂ Pin</button>
 <button id="fit" title="Fit page / fit width"></button><button id="cc" title="Color"></button>
-<button id="gh" title="Add row guide">━ Row</button><button id="gv" title="Add column guide">┃ Col</button><button id="lst" title="All notes">💬</button><button id="rtb" title="Show the current row's text">Aa Row</button></div>
-<div id="pdfwrap"><div id="stage"><canvas id="cv"></canvas><div id="ann"></div><div id="draw"></div></div></div>
+<button id="gh" title="Add row guide">━ Row</button><button id="gv" title="Add column guide">┃ Col</button><button id="sc" title="Continuous scroll">☰ Scroll</button><button id="lst" title="All notes">💬</button><button id="rtb" title="Show the current row's text">Aa Row</button></div>
+<div id="pdfwrap"><div id="pages"></div></div>
 <div id="rowtxt" class="hide"><div class="rh"><b id="rhd"></b><span><button id="rp">◀</button> <button id="rn">▶</button></span></div><div id="rbody"></div><small id="rnext"></small></div>
+<div id="pins" class="hide"><div class="rh"><div id="pchips" style="display:flex;gap:6px;overflow:auto;flex:1"></div><span><button id="pgo" title="Go to its page">↗</button> <button id="pren" title="Rename">✎</button> <button id="pdel" title="Remove">🗑</button> <button id="pcol">▾</button></span></div><div id="pbody"><canvas id="pcv"></canvas></div></div>
 <div id="notes" class="hide"><textarea id="nt" placeholder="Project notes: needle size, mods, reminders…"></textarea>
 <small id="tm"></small></div>
 <div id="dock"><div id="chips"></div>
@@ -93,6 +101,7 @@ code{display:block;padding:10px;background:var(--bg);border-radius:10px;user-sel
 <div style="display:flex;gap:6px;margin-top:8px;justify-content:space-between">
 <button id="undo">↶ Undo</button><button id="zm">🔍−</button><button id="zp">🔍+</button><button id="nb">📝</button><button id="cfg">⚙</button></div></div>
 </div>
+<div id="toast" class="hide"></div>
 <div id="sheet" class="hide"><div class="sb"></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -103,6 +112,7 @@ const $=s=>document.querySelector(s),COLS=['#ffd60a','#ff5fa2','#4cd964','#4fc3f
 const dbp=new Promise((res,rej)=>{const r=indexedDB.open('stitchtally',1);r.onupgradeneeded=()=>r.result.createObjectStore('p',{keyPath:'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
 const tx=async(m,f)=>{const d=await dbp;return new Promise((res,rej)=>{const t=d.transaction('p',m);const o=f(t.objectStore('p'));t.oncomplete=()=>res(o.result);t.onerror=()=>rej(t.error)})};
 const getAll=()=>tx('readonly',s=>s.getAll()),getOne=id=>tx('readonly',s=>s.get(id)),put=p=>tx('readwrite',s=>s.put(p)),del=id=>tx('readwrite',s=>s.delete(id));
+let cont=localStorage.st_cont==='1',obs=null,sr=0,pinSel=0,pinKey='',pinOpen=true,ptask=null,ptok=0,toastT;
 let RT=[],rtDone=false,rtPick=0,rtV=-1,showRT=localStorage.st_rt!=='0',redo=[],CAT=null;
 let fit=localStorage.st_fit||(innerWidth>innerHeight?'page':'width'),wt,rtok=0;
 let P=null,pdf=null,page=1,zoom=1,ci=0,hist=[],task=null,saveT=null,wl=null,tool='move',col=COLS[0],W=1,H=1,syncT=null,syncing=false,dirty=false,lw=0,rt;
@@ -140,35 +150,58 @@ $('#f').onchange=async e=>{
 
 // ---------- project open/close ----------
 async function openProject(p){
- P=p;P.guides||=[];P.anns||=[];page=p.page||1;zoom=p.zoom||1;ci=0;hist=[];redo=[];setTool('move');fitLbl();
+ P=p;P.guides||=[];P.anns||=[];P.crops||=[];pinSel=0;pinKey='';page=p.page||1;zoom=p.zoom||1;ci=0;hist=[];redo=[];setTool('move');fitLbl();scLbl();
  $('#hl').classList.add('hide');$('#lib').classList.add('hide');$('#proj').classList.remove('hide');
  $('#pt').textContent=p.name;$('#nt').value=p.notes||'';
  try{pdf=await pdfjsLib.getDocument({data:await p.pdf.arrayBuffer()}).promise}catch(e){alert('Could not open that PDF.');return closeProject()}
- page=Math.min(page,pdf.numPages);ui();render();indexText();
+ page=Math.min(page,pdf.numPages);ui();render();indexText();pins();
  try{wl=await navigator.wakeLock?.request('screen')}catch{}
 }
 async function closeProject(){
  if(P){await flush();await put(P)}
- P=null;pdf=null;wl?.release?.();shut();
+ P=null;pdf=null;wl?.release?.();shut();obs?.disconnect();$('#pages').innerHTML='';$('#pins').classList.add('hide');$('#rowtxt').classList.add('hide');
  $('#proj').classList.add('hide');$('#hl').classList.remove('hide');$('#lib').classList.remove('hide');lib();sync();
 }
 $('#back').onclick=closeProject;
 
 // ---------- rendering ----------
+const bw=b=>parseFloat(b.style.width),bh=b=>parseFloat(b.style.height);
+const boxOf=n=>document.querySelector('.pgbox[data-p="'+n+'"]');
+const scaleFor=b=>{const wr=$('#pdfwrap'),aw=wr.clientWidth-6,ah=wr.clientHeight-6;return (fit==='page'&&!cont?Math.min(aw/b.width,ah/b.height):aw/b.width)*zoom};
+function mkBox(n,w,h){const b=document.createElement('div');b.className='pgbox';b.dataset.p=n;b.style.width=w+'px';b.style.height=h+'px';
+ b.innerHTML='<canvas></canvas><div class="ann"></div><div class="draw"></div>';wireDraw(b);return b}
+function scrollToBox(n){const bx=boxOf(n),wr=$('#pdfwrap');if(bx)wr.scrollTop+=bx.getBoundingClientRect().top-wr.getBoundingClientRect().top}
 async function render(after){
- if(!pdf)return;task?.cancel();const my=++rtok;
+ if(!pdf)return;const my=++rtok;
  const pg=await pdf.getPage(page);if(my!==rtok)return;
- const wr=$('#pdfwrap'),aw=wr.clientWidth-6,ah=wr.clientHeight-6;lw=wr.clientWidth;
- const b=pg.getViewport({scale:1}),fs=fit==='page'?Math.min(aw/b.width,ah/b.height):aw/b.width,s=fs*zoom;
- const v1=pg.getViewport({scale:s}),r=Math.min(devicePixelRatio||1,Math.sqrt(16e6/(v1.width*v1.height))),vp=pg.getViewport({scale:s*r}),cv=$('#cv');
- cv.width=vp.width;cv.height=vp.height;W=v1.width;H=v1.height;cv.style.width=W+'px';cv.style.height=H+'px';
- $('#pg').textContent=page+'/'+pdf.numPages;ov();after&&after();
- task=pg.render({canvasContext:cv.getContext('2d'),viewport:vp});
- try{await task.promise}catch{}
+ const v1=pg.getViewport({scale:scaleFor(pg.getViewport({scale:1}))}),pages=$('#pages');lw=$('#pdfwrap').clientWidth;
+ obs?.disconnect();document.querySelectorAll('.pgbox').forEach(x=>x._t?.cancel());pages.innerHTML='';
+ if(!cont){const bx=mkBox(page,v1.width,v1.height);pages.append(bx);paint(bx)}
+ else{
+  for(let i=1;i<=pdf.numPages;i++)pages.append(mkBox(i,v1.width,v1.height));
+  obs=new IntersectionObserver(es=>es.forEach(e=>e.isIntersecting?paint(e.target):release(e.target)),{root:$('#pdfwrap'),rootMargin:'120% 0px'});
+  document.querySelectorAll('.pgbox').forEach(x=>obs.observe(x));scrollToBox(page);
+ }
+ $('#pg').textContent=page+'/'+pdf.numPages;after&&after();
 }
+async function paint(box){
+ if(!pdf||box.dataset.on==='1')return;box.dataset.on='1';
+ const n=+box.dataset.p,pg=await pdf.getPage(n);if(box.dataset.on!=='1'||!box.isConnected)return;
+ const s=scaleFor(pg.getViewport({scale:1})),v1=pg.getViewport({scale:s}),r=Math.min(devicePixelRatio||1,Math.sqrt(16e6/(v1.width*v1.height))),vp=pg.getViewport({scale:s*r}),cv=box.querySelector('canvas');
+ box.style.width=v1.width+'px';box.style.height=v1.height+'px';
+ cv.width=vp.width;cv.height=vp.height;cv.style.width=v1.width+'px';cv.style.height=v1.height+'px';
+ ovBox(box);box._t?.cancel();box._t=pg.render({canvasContext:cv.getContext('2d'),viewport:vp});
+ try{await box._t.promise}catch{}
+}
+function release(box){box._t?.cancel();box.dataset.on='';const c=box.querySelector('canvas');c.width=c.height=0;box.querySelector('.ann').innerHTML=''}
+function trackPage(){if(!cont||!P||!pdf)return;const wr=$('#pdfwrap').getBoundingClientRect(),mid=wr.top+wr.height/2;let best=null,bd=1e9;
+ document.querySelectorAll('.pgbox[data-on="1"]').forEach(b=>{const r=b.getBoundingClientRect(),d=mid<r.top?r.top-mid:mid>r.bottom?mid-r.bottom:0;if(d<bd){bd=d;best=b}});
+ const n=best&&+best.dataset.p;if(n&&n!==page){page=n;P.page=n;rtPick=0;$('#pg').textContent=n+'/'+pdf.numPages;save();rowText()}}
+const scLbl=()=>{$('#sc').textContent=cont?'☰ Scroll ✓':'☰ Scroll'};
+$('#sc').onclick=()=>{cont=!cont;localStorage.st_cont=cont?'1':'0';scLbl();if(pdf)render()};
 const fitLbl=()=>{$('#fit').textContent=fit==='page'?'⤢ Page':'↔ Width'};
 $('#fit').onclick=()=>{fit=fit==='page'?'width':'page';localStorage.st_fit=fit;zoom=1;P.zoom=1;save();fitLbl();render();$('#pdfwrap').scrollTo(0,0)};
-const go=n=>{if(n<1||n>pdf.numPages)return;page=n;P.page=n;rtPick=0;save();render();rowText();$('#pdfwrap').scrollTop=0};
+const go=n=>{if(n<1||n>pdf.numPages)return;page=n;P.page=n;rtPick=0;save();if(cont){scrollToBox(n);$('#pg').textContent=n+'/'+pdf.numPages}else{render();$('#pdfwrap').scrollTop=0}rowText()};
 $('#pm').onclick=()=>go(page-1);$('#pp').onclick=()=>go(page+1);
 $('#zm').onclick=()=>{zoom=Math.max(.3,zoom-.25);P.zoom=zoom;save();render()};
 $('#zp').onclick=()=>{zoom=Math.min(4,zoom+.25);P.zoom=zoom;save();render()};
@@ -181,32 +214,37 @@ $('#cc').style.background=col;
 $('#cc').onclick=()=>{col=COLS[(COLS.indexOf(col)+1)%COLS.length];$('#cc').style.background=col};
 
 // ---------- overlay: guides + annotations (coords stored as page fractions so they sync across screen sizes) ----------
-function ov(){
- const a=$('#ann');a.innerHTML='';
- for(const g of P.guides)if(g.all||g.page===page)a.append(gEl(g));
- for(const n of P.anns)if(n.page===page)a.append(nEl(n));
+function ovBox(box){
+ const a=box.querySelector('.ann'),n=+box.dataset.p;a.innerHTML='';
+ for(const g of P.guides)if(g.all||g.page===n)a.append(gEl(g,box));
+ for(const x of P.anns)if(x.page===n)a.append(nEl(x,box));
+ for(const c of P.crops)if(c.page===n)a.append(cEl(c,box));
  ph();
 }
-function gPlace(d,g){const s=d.style;
+const ov=()=>document.querySelectorAll('.pgbox[data-on="1"]').forEach(ovBox);
+function gPlace(d,g,box){const s=d.style,W=bw(box),H=bh(box);
  if(g.o==='h'){s.left=0;s.right=0;s.top=(g.p-g.t/2)*H+'px';s.height=g.t*H+'px'}
  else{s.top=0;s.bottom=0;s.left=(g.p-g.t/2)*W+'px';s.width=g.t*W+'px'}}
-function gEl(g){
+function gEl(g,box){
  const d=document.createElement('div');d.className='g';const h=g.o==='h';
- d.style.background=g.c+'55';d.style.borderColor=g.c;d.style.borderWidth=h?'2px 0':'0 2px';gPlace(d,g);
+ d.style.background=g.c+'55';d.style.borderColor=g.c;d.style.borderWidth=h?'2px 0':'0 2px';gPlace(d,g,box);
  const k=document.createElement('div');k.className='gh '+g.o;k.textContent=h?'⇅':'⇄';d.append(k);
  let m=0,sx,sy;
  k.onpointerdown=e=>{k.setPointerCapture(e.pointerId);m=0;sx=e.clientX;sy=e.clientY};
  k.onpointermove=e=>{if(!k.hasPointerCapture(e.pointerId))return;if(!m&&Math.hypot(e.clientX-sx,e.clientY-sy)>5){m=1;snap()}if(!m)return;
-  const r=$('#stage').getBoundingClientRect();g.p=clamp(h?(e.clientY-r.top)/H:(e.clientX-r.left)/W);gPlace(d,g)};
+  const r=box.getBoundingClientRect();g.p=clamp(h?(e.clientY-r.top)/bh(box):(e.clientX-r.left)/bw(box));gPlace(d,g,box);ph()};
  k.onpointerup=()=>{if(m)save();else gSheet(g)};
  return d;
 }
-function ph(){const w=$('#pdfwrap'),st=$('#stage');
- document.querySelectorAll('.gh.h').forEach(h=>{h.style.left=Math.max(0,w.scrollLeft+w.clientWidth-st.offsetLeft-56)+'px'});
- document.querySelectorAll('.gh.v').forEach(h=>{h.style.top=Math.max(0,w.scrollTop+w.clientHeight/2-st.offsetTop-24)+'px'})}
-$('#pdfwrap').onscroll=ph;
-function addG(o){const w=$('#pdfwrap');
- snap();P.guides.push({id:uid(),o,p:o==='h'?clamp((w.scrollTop+w.clientHeight/3)/H):.5,t:o==='h'?.03:.06,c:col,page,all:false});save();ov()}
+function cEl(c,box){const d=document.createElement('div');d.className='crop';const s=d.style;
+ s.left=c.x*bw(box)+'px';s.top=c.y*bh(box)+'px';s.width=c.w*bw(box)+'px';s.height=c.h*bh(box)+'px';return d}
+function ph(){const wr=$('#pdfwrap').getBoundingClientRect();
+ document.querySelectorAll('.gh').forEach(h=>{const bx=h.closest('.pgbox'),br=bx.getBoundingClientRect();
+  if(h.classList.contains('h'))h.style.left=Math.max(0,Math.min(bw(bx)-56,wr.right-br.left-56))+'px';
+  else h.style.top=Math.max(0,Math.min(bh(bx)-48,wr.top+wr.height/2-br.top-24))+'px'})}
+$('#pdfwrap').onscroll=()=>{ph();if(cont){cancelAnimationFrame(sr);sr=requestAnimationFrame(trackPage)}};
+function addG(o){const bx=boxOf(page);if(!bx)return;const wr=$('#pdfwrap').getBoundingClientRect(),br=bx.getBoundingClientRect();
+ snap();P.guides.push({id:uid(),o,p:o==='h'?clamp((wr.top+wr.height/3-br.top)/bh(bx)):.5,t:o==='h'?.03:.06,c:col,page,all:false});save();ov()}
 $('#gh').onclick=()=>addG('h');$('#gv').onclick=()=>addG('v');
 function gSheet(g){
  sheet(`<h3>${g.o==='h'?'Row':'Column'} guide</h3><div class="row"><button id="t1">Thinner</button><button id="t2">Thicker</button></div>
@@ -218,8 +256,8 @@ function gSheet(g){
   el.querySelector('#dl').onclick=()=>{snap();P.guides=P.guides.filter(x=>x!==g);save();ov();shut()};
  });
 }
-function nEl(n){
- const d=document.createElement('div');d.className='a '+n.k+(n.done?' done':'');const s=d.style;
+function nEl(n,box){
+ const d=document.createElement('div');d.className='a '+n.k+(n.done?' done':'');const s=d.style,W=bw(box),H=bh(box);
  s.left=n.x*W+'px';s.top=n.y*H+'px';
  if(n.k==='hl'){s.width=n.w*W+'px';s.height=n.h*H+'px';s.background=n.c+'66';if(n.cm.length)d.innerHTML='<span class="bd">💬'+n.cm.length+'</span>'}
  else{s.background=n.c;d.textContent='💬'}
@@ -243,29 +281,52 @@ $('#lst').onclick=()=>{
  sheet('<h3>Notes & highlights</h3>'+(a.length?a.map(n=>`<div class="card" data-n="${n.id}"><div class="t"><b>${n.k==='pin'?'📍':'🖍'} Page ${n.page}${n.done?' ✓':''}</b><small>${esc(n.cm[0]?.x||'(no comment)')}</small></div></div>`).join(''):'<small>None yet. Use 🖍 to highlight an area or 📍 to drop a note.</small>'),
  el=>el.querySelectorAll('[data-n]').forEach(c=>c.onclick=()=>{const n=P.anns.find(x=>x.id===c.dataset.n);shut();if(n.page!==page)go(n.page);aSheet(n)}));
 };
-// drawing layer (highlight drag / note tap)
-const dl=$('#draw');let ds=null,pv=null;
-dl.onpointerdown=e=>{const r=$('#stage').getBoundingClientRect();ds={x:e.clientX-r.left,y:e.clientY-r.top,r};dl.setPointerCapture(e.pointerId);
- if(tool==='hl'){pv=document.createElement('div');pv.className='a hl';pv.style.background=col+'66';pv.style.pointerEvents='none';$('#ann').append(pv)}};
-dl.onpointermove=e=>{if(!ds||tool!=='hl')return;const x=e.clientX-ds.r.left,y=e.clientY-ds.r.top,s=pv.style;
- s.left=Math.min(x,ds.x)+'px';s.top=Math.min(y,ds.y)+'px';s.width=Math.abs(x-ds.x)+'px';s.height=Math.abs(y-ds.y)+'px'};
-dl.onpointercancel=()=>{pv?.remove();pv=null;ds=null};
-dl.onpointerup=e=>{if(!ds)return;const x=e.clientX-ds.r.left,y=e.clientY-ds.r.top;
- if(tool==='hl'){pv?.remove();pv=null;const w=Math.abs(x-ds.x),h=Math.abs(y-ds.y);
-  if(w>8&&h>4){snap();P.anns.push({id:uid(),k:'hl',page,x:Math.min(x,ds.x)/W,y:Math.min(y,ds.y)/H,w:w/W,h:h/H,c:col,cm:[]});save();ov()}}
- else if(tool==='pin'){const n={id:uid(),k:'pin',page,x:ds.x/W,y:ds.y/H,c:col,cm:[]};snap();P.anns.push(n);save();setTool('move');ov();aSheet(n)}
- ds=null};
+// drawing layer per page (highlight drag / note tap / pin-region drag)
+function wireDraw(box){
+ const dl=box.querySelector('.draw');let ds=null,pv=null;
+ dl.onpointerdown=e=>{const r=box.getBoundingClientRect();ds={x:e.clientX-r.left,y:e.clientY-r.top,r};dl.setPointerCapture(e.pointerId);
+  if(tool==='hl'||tool==='crop'){pv=document.createElement('div');pv.className='a '+(tool==='hl'?'hl':'cropprev');if(tool==='hl')pv.style.background=col+'66';pv.style.pointerEvents='none';box.querySelector('.ann').append(pv)}};
+ dl.onpointermove=e=>{if(!ds||!pv)return;const x=e.clientX-ds.r.left,y=e.clientY-ds.r.top,s=pv.style;
+  s.left=Math.min(x,ds.x)+'px';s.top=Math.min(y,ds.y)+'px';s.width=Math.abs(x-ds.x)+'px';s.height=Math.abs(y-ds.y)+'px'};
+ dl.onpointercancel=()=>{pv?.remove();pv=null;ds=null};
+ dl.onpointerup=e=>{if(!ds)return;const x=e.clientX-ds.r.left,y=e.clientY-ds.r.top,W=bw(box),H=bh(box),n=+box.dataset.p,w=Math.abs(x-ds.x),hh=Math.abs(y-ds.y);
+  pv?.remove();pv=null;
+  if(tool==='hl'){if(w>8&&hh>4){snap();P.anns.push({id:uid(),k:'hl',page:n,x:Math.min(x,ds.x)/W,y:Math.min(y,ds.y)/H,w:w/W,h:hh/H,c:col,cm:[]});save();ov()}}
+  else if(tool==='crop'){if(w>12&&hh>12){snap();P.crops.push({id:uid(),page:n,x:Math.min(x,ds.x)/W,y:Math.min(y,ds.y)/H,w:w/W,h:hh/H,name:'Pin '+(P.crops.length+1)});pinSel=P.crops.length-1;pinKey='';save();setTool('move');ov();pins()}}
+  else if(tool==='pin'){const nn={id:uid(),k:'pin',page:n,x:ds.x/W,y:ds.y/H,c:col,cm:[]};snap();P.anns.push(nn);save();setTool('move');ov();aSheet(nn)}
+  ds=null};
+}
+// pinned regions (keys, charts) shown above the counter
+async function pins(){
+ const el=$('#pins');
+ if(!P||!P.crops.length){el.classList.add('hide');return}
+ el.classList.remove('hide');pinSel=Math.min(pinSel,P.crops.length-1);
+ $('#pchips').innerHTML=P.crops.map((c,i)=>`<button class="chip ${i===pinSel?'on':''}" data-i="${i}">${esc(c.name)}</button>`).join('');
+ const c=P.crops[pinSel];if(!c||!pdf||!pinOpen)return;
+ const w=Math.max(120,el.clientWidth-24),key=c.id+'|'+w+'|'+[c.x,c.y,c.w,c.h].join();if(key===pinKey)return;pinKey=key;const my=++ptok;
+ const pg=await pdf.getPage(c.page);if(my!==ptok)return;
+ const b=pg.getViewport({scale:1}),s=w/(c.w*b.width),ch=c.h*b.height*s,r=Math.min(devicePixelRatio||1,3,8000/ch),vp=pg.getViewport({scale:s*r}),cv=$('#pcv');
+ cv.width=Math.max(1,Math.ceil(c.w*vp.width));cv.height=Math.max(1,Math.ceil(c.h*vp.height));cv.style.width=w+'px';cv.style.height=ch+'px';
+ ptask?.cancel();ptask=pg.render({canvasContext:cv.getContext('2d'),viewport:vp,transform:[1,0,0,1,-c.x*vp.width,-c.y*vp.height]});
+ try{await ptask.promise}catch{}
+}
+$('#pchips').onclick=e=>{const b=e.target.closest('[data-i]');if(!b)return;const i=+b.dataset.i;if(i===pinSel)go(P.crops[i].page);else{pinSel=i;pinKey='';pins()}};
+$('#pgo').onclick=()=>{const c=P.crops[pinSel];if(c)go(c.page)};
+$('#pren').onclick=()=>{const c=P.crops[pinSel];if(!c)return;const n=prompt('Name for this pinned region',c.name);if(n){snap();c.name=n;save();pinKey='';pins()}};
+$('#pdel').onclick=()=>{const c=P.crops[pinSel];if(!c||!confirm('Remove this pinned region?'))return;snap();P.crops.splice(pinSel,1);pinSel=0;pinKey='';save();ov();pins()};
+$('#pcol').onclick=()=>{pinOpen=!pinOpen;$('#pbody').classList.toggle('hide',!pinOpen);$('#pcol').textContent=pinOpen?'▾':'▸';pinKey='';pins()};
+addEventListener('resize',()=>pins());
 
 // ---------- pinch / ctrl-wheel zoom that only zooms the PDF ----------
 document.addEventListener('gesturestart',e=>e.preventDefault());
-{const wr=$('#pdfwrap'),st=$('#stage');let pin=null;
+{const wr=$('#pdfwrap'),st=$('#pages');let pin=null;
  const dist=e=>Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
- wr.addEventListener('touchstart',e=>{if(e.touches.length===2&&P){const r=st.getBoundingClientRect(),cx=(e.touches[0].clientX+e.touches[1].clientX)/2,cy=(e.touches[0].clientY+e.touches[1].clientY)/2;
-  pin={d:dist(e),z:zoom,r:1,fx:cx-r.left,fy:cy-r.top};st.style.transformOrigin=pin.fx+'px '+pin.fy+'px'}},{passive:true});
+ wr.addEventListener('touchstart',e=>{if(e.touches.length===2&&P){const r=st.getBoundingClientRect(),w=wr.getBoundingClientRect(),cx=(e.touches[0].clientX+e.touches[1].clientX)/2,cy=(e.touches[0].clientY+e.touches[1].clientY)/2;
+  pin={d:dist(e),z:zoom,r:1,wx:cx-w.left,wy:cy-w.top,l:wr.scrollLeft,t:wr.scrollTop};st.style.transformOrigin=(cx-r.left)+'px '+(cy-r.top)+'px'}},{passive:true});
  wr.addEventListener('touchmove',e=>{if(pin&&e.touches.length===2){e.preventDefault();pin.r=Math.min(4,Math.max(.3,pin.z*dist(e)/pin.d))/pin.z;st.style.transform='scale('+pin.r+')'}},{passive:false});
- const end=e=>{if(!pin||e.touches.length>=2)return;const s=pin.r,fx=pin.fx,fy=pin.fy;pin=null;st.style.transform='';st.style.transformOrigin='';
+ const end=e=>{if(!pin||e.touches.length>=2)return;const s=pin.r,q=pin;pin=null;st.style.transform='';st.style.transformOrigin='';
   if(Math.abs(s-1)<.02)return;zoom=Math.min(4,Math.max(.3,zoom*s));P.zoom=zoom;save();
-  render(()=>{wr.scrollLeft+=fx*(s-1);wr.scrollTop+=fy*(s-1)})};
+  render(()=>{wr.scrollLeft=(q.l+q.wx)*s-q.wx;wr.scrollTop=(q.t+q.wy)*s-q.wy})};
  wr.addEventListener('touchend',end);wr.addEventListener('touchcancel',end);
  wr.addEventListener('wheel',e=>{if(!e.ctrlKey||!P)return;e.preventDefault();zoom=Math.min(4,Math.max(.3,zoom*Math.exp(-e.deltaY*.01)));P.zoom=zoom;clearTimeout(wt);wt=setTimeout(()=>{save();render()},120)},{passive:false});
 }
@@ -275,22 +336,26 @@ const C=()=>P.counters[ci];
 function ui(){
  $('#chips').innerHTML=P.counters.map((c,i)=>`<button class="chip ${i==ci?'on':''}" data-i="${i}">${esc(c.name)}</button>`).join('')+'<button class="chip" id="nc">+</button>';
  const c=C();$('#val').value=c.value;
- $('#cn').textContent=c.name+(c.repeat?` · repeat every ${c.repeat} · rounds: ${c.laps}`:'');
+ const nr=(c.rem||[]).filter(r=>r.at>c.value).sort((a,b)=>a.at-b.at)[0];
+ $('#cn').textContent=c.name+(c.repeat?` · repeat every ${c.repeat} · rounds: ${c.laps}`:'')+(nr?` · ⏰ row ${nr.at}`:'');
  $('#tm').textContent='Time on this project: '+fmt(P.seconds||0);rowText();
 }
 $('#chips').onclick=e=>{
  if(e.target.id==='nc'){const n=prompt('New counter name (e.g. Repeats, Increases)');if(n){P.counters.push({id:Date.now(),name:n,value:0,repeat:0,laps:0});ci=P.counters.length-1;save();ui()}return}
  const b=e.target.closest('[data-i]');if(b){ci=+b.dataset.i;ui()}
 };
-const state=()=>JSON.stringify({c:P.counters,g:P.guides,a:P.anns});
+const state=()=>JSON.stringify({c:P.counters,g:P.guides,a:P.anns,k:P.crops});
 const snap=()=>{hist.push(state());if(hist.length>60)hist.shift();redo=[]};
-function restore(s){const o=JSON.parse(s);P.counters=o.c;P.guides=o.g;P.anns=o.a;ci=Math.min(ci,P.counters.length-1);shut();save();ui();ov()}
+function restore(s){const o=JSON.parse(s);P.counters=o.c;P.guides=o.g;P.anns=o.a;P.crops=o.k||[];ci=Math.min(ci,P.counters.length-1);shut();save();ui();ov();pinKey='';pins()}
 function undo(){if(!P||!hist.length)return;redo.push(state());restore(hist.pop())}
 function redoIt(){if(!P||!redo.length)return;hist.push(state());restore(redo.pop())}
-function bump(n){snap();const c=C();
- if(n>0)for(let i=0;i<n;i++){c.value++;if(c.repeat&&c.value>c.repeat){c.value=1;c.laps++}}
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.remove('hide');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.add('hide'),12000)}
+$('#toast').onclick=()=>$('#toast').classList.add('hide');
+function bump(n){snap();const c=C(),hit=[];
+ if(n>0)for(let i=0;i<n;i++){c.value++;if(c.repeat&&c.value>c.repeat){c.value=1;c.laps++}(c.rem||[]).forEach(r=>{if(r.at===c.value)hit.push(r)})}
  else for(let i=0;i<-n;i++){if(c.value>0)c.value--;if(c.value===0&&c.repeat&&c.laps>0){c.laps--;c.value=c.repeat}}
- buzz(Math.abs(n)>1?[30,40,30]:15);save();ui()}
+ buzz(hit.length?[100,60,100]:Math.abs(n)>1?[30,40,30]:15);save();ui();
+ if(hit.length)toast('⏰ Row '+c.value+': '+hit.map(r=>r.text).join(' · '))}
 function hold(btn,sign){let t,lp=false;
  btn.onpointerdown=()=>{lp=false;t=setTimeout(()=>{lp=true;bump(10*sign)},500)};
  btn.onpointerup=btn.onpointerleave=btn.onpointercancel=()=>clearTimeout(t);
@@ -299,16 +364,23 @@ function hold(btn,sign){let t,lp=false;
 hold($('#plus'),1);hold($('#minus'),-1);
 $('#val').onfocus=e=>e.target.select();
 $('#val').onkeydown=e=>{if(e.key==='Enter')e.target.blur()};
-$('#val').onchange=e=>{const v=parseInt(e.target.value,10);if(Number.isNaN(v)||v<0){ui();return}snap();C().value=v;save();ui()};
+$('#val').onchange=e=>{const v=parseInt(e.target.value,10);if(Number.isNaN(v)||v<0){ui();return}snap();C().value=v;save();ui();const hit=(C().rem||[]).filter(r=>r.at===v);if(hit.length){buzz([100,60,100]);toast('⏰ Row '+v+': '+hit.map(r=>r.text).join(' · '))}};
 $('#undo').onclick=undo;$('#u1').onclick=undo;$('#u2').onclick=redoIt;
-$('#cfg').onclick=()=>{
- const c=C(),a=prompt('Counter options — type: rename, repeat, reset, delete','rename');
- if(a==='rename'){const n=prompt('Name',c.name);if(n)c.name=n}
- else if(a==='repeat'){const n=prompt('Repeat every N rows (0 = off)',c.repeat);if(n!==null)c.repeat=Math.max(0,+n||0)}
- else if(a==='reset'){if(confirm('Reset to 0?')){snap();c.value=0;c.laps=0}}
- else if(a==='delete'){if(P.counters.length>1&&confirm('Delete counter?')){P.counters.splice(ci,1);ci=0}}
- save();ui();
-};
+function cfgSheet(){
+ const c=C();c.rem||=[];
+ const list=c.rem.map((r,i)=>({r,i})).sort((a,b)=>a.r.at-b.r.at).map(({r,i})=>`<div class="cm"><b>Row ${r.at}</b> · ${esc(r.text)}<button data-r="${i}">✕</button></div>`).join('')||'<small>None yet. A reminder pops up when the count reaches that row (every round on repeat counters).</small>';
+ sheet(`<h3>${esc(c.name)}</h3><div class="row"><button id="c1">Rename</button><button id="c2">Repeat every: ${c.repeat||'off'}</button><button id="c3">Reset to 0</button><button id="c4">Delete counter</button></div>
+ <h3>⏰ Reminders</h3>${list}<div class="row"><input id="ra" inputmode="numeric" placeholder="Row #" style="width:84px"><input id="rt" placeholder="e.g. start decreases" style="flex:1;min-width:150px"><button class="p" id="rb">Add</button></div>`,el=>{
+  const q=s=>el.querySelector(s);
+  q('#c1').onclick=()=>{const n=prompt('Name',c.name);if(n){snap();c.name=n;save();ui();cfgSheet()}};
+  q('#c2').onclick=()=>{const n=prompt('Repeat every N rows (0 = off)',c.repeat);if(n!==null){snap();c.repeat=Math.max(0,+n||0);save();ui();cfgSheet()}};
+  q('#c3').onclick=()=>{if(confirm('Reset to 0?')){snap();c.value=0;c.laps=0;save();ui();shut()}};
+  q('#c4').onclick=()=>{if(P.counters.length<2){alert('A project needs at least one counter.');return}if(confirm('Delete this counter?')){snap();P.counters.splice(ci,1);ci=0;save();ui();shut()}};
+  q('#rb').onclick=()=>{const at=parseInt(q('#ra').value,10),tx=q('#rt').value.trim();if(!(at>0)||!tx)return;snap();c.rem.push({at,text:tx});save();ui();cfgSheet()};
+  el.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{snap();c.rem.splice(+b.dataset.r,1);save();ui();cfgSheet()});
+ });
+}
+$('#cfg').onclick=cfgSheet;
 $('#nb').onclick=()=>$('#notes').classList.toggle('hide');
 $('#nt').oninput=e=>{P.notes=e.target.value;save()};
 setInterval(()=>{if(P&&!document.hidden){P.seconds=(P.seconds||0)+1;if(P.seconds%30===0)put(P)}},1000);

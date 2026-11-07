@@ -13,3 +13,8 @@ Google Cloud Console → Credentials → OAuth client (Web). Authorized JavaScri
 - Undo/redo (Ctrl+Z / Ctrl+Shift+Z, plus on-screen buttons) covers counters, guides, highlights and comments.
 - Row text: reads the PDF's own text layer for "Row N", "Rnd N" and "1st row" lines and shows the one matching the active counter.
 - Free library (`public/library.json`): public-domain vintage patterns. `/api/lib/:id` streams the listed archive.org PDFs through the Worker. Only catalog entries can be fetched.
+
+## Features added in v4
+- Continuous scroll mode (toolbar "Scroll"): all pages stacked, rendered lazily as you scroll; annotations and guides work on every page.
+- Pinned regions (toolbar "Pin"): drag a box around a key or chart and it stays docked above the counter. Tap the active tab to jump to its page.
+- Row reminders (counter settings): "at row 14, start decreases". Fires on increments, including +10 jumps and each round of repeat counters.
